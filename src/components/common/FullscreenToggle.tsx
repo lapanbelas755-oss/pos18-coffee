@@ -13,13 +13,21 @@ export default function FullscreenToggle() {
   }, []);
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(err => {
-        console.error(`Error attempting to enable fullscreen: ${err.message}`);
-      });
+    const doc = window.document as any;
+    const docEl = doc.documentElement;
+
+    const requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
+    const cancelFullScreen = doc.exitFullscreen || doc.mozCancelFullScreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
+
+    if (!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
+      if (requestFullScreen) {
+        requestFullScreen.call(docEl).catch((err: any) => {
+          console.error(`Error attempting to enable fullscreen: ${err.message}`);
+        });
+      }
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
+      if (cancelFullScreen) {
+        cancelFullScreen.call(doc);
       }
     }
   };

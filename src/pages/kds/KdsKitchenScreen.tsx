@@ -91,6 +91,15 @@ export default function KdsKitchenScreen() {
     await supabase.from('kds_orders').update({ items: updatedItems }).eq('id', orderId);
   }, [kdsOrders, setKdsOrders]);
 
+  const handleStart = useCallback(async (orderId: string) => {
+    const order = kdsOrders.find(o => o.id === orderId);
+    if (!order) return;
+    const updatedOrder = { ...order, status: 'working' as const };
+    setKdsOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
+    await supabase.from('kds_orders').update({ status: 'working' }).eq('id', orderId);
+    speak("Mulai menyiapkan pesanan");
+  }, [kdsOrders, setKdsOrders, speak]);
+
   const handleDone = useCallback(async (orderId: string) => {
     const order = kdsOrders.find(o => o.id === orderId);
     if (!order) return;
@@ -223,7 +232,7 @@ export default function KdsKitchenScreen() {
                     ))}
                   </div>
 
-                  {/* Done Button */}
+                  {/* Action Buttons */}
                   <div className="p-4 bg-black/40 border-t border-emerald-900/50 flex gap-2">
                   {activeTab === 'riwayat' ? (
                     <button 
@@ -234,18 +243,32 @@ export default function KdsKitchenScreen() {
                       Kembalikan Order
                     </button>
                   ) : (
-                    <button 
-                      onClick={() => handleDone(order.id)}
-                      disabled={!allChecked}
-                      className={`flex-1 py-3 font-bold rounded-xl transition-colors active:scale-95 flex items-center justify-center gap-2 ${
-                        allChecked 
-                        ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
-                        : 'bg-white/5 text-white/30 cursor-not-allowed'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[20px]">done_all</span>
-                      Pesanan Siap
-                    </button>
+                    <>
+                      {order.status === 'incoming' && (
+                        <button 
+                          onClick={() => handleStart(order.id)}
+                          className="flex-1 py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-colors active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">play_arrow</span>
+                          Mulai
+                        </button>
+                      )}
+
+                      {(order.status === 'working' || order.status === 'urgent') && (
+                        <button 
+                          onClick={() => handleDone(order.id)}
+                          disabled={!allChecked}
+                          className={`flex-1 py-3 font-bold rounded-xl transition-colors active:scale-95 flex items-center justify-center gap-2 ${
+                            allChecked 
+                            ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
+                            : 'bg-white/5 text-white/30 cursor-not-allowed'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[20px]">done_all</span>
+                          Pesanan Siap
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
                 </div>
