@@ -29,17 +29,69 @@ function formatTime(sec: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-const StatusBadge = ({ status, label }: { status: 'pending' | 'process' | 'done' | 'none'; label: string }) => {
+const kdsStyles = `
+  @keyframes steam-rise {
+    0% { transform: translateY(2px) scale(0.9); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: translateY(-4px) scale(1.1); opacity: 0; }
+  }
+  @keyframes fry-toss {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-4px) rotate(5deg); }
+  }
+  .animate-steam-1 { animation: steam-rise 1.2s infinite ease-in-out; }
+  .animate-steam-2 { animation: steam-rise 1.2s infinite ease-in-out 0.4s; }
+  .animate-steam-3 { animation: steam-rise 1.2s infinite ease-in-out 0.8s; }
+  .animate-fry-bounce-1 { animation: fry-toss 1s infinite ease-in-out; }
+  .animate-fry-bounce-2 { animation: fry-toss 1s infinite ease-in-out 0.3s; }
+  .animate-fry-bounce-3 { animation: fry-toss 1s infinite ease-in-out 0.6s; }
+`;
+
+const StatusBadge = ({ 
+  status, 
+  label, 
+  station 
+}: { 
+  status: 'pending' | 'process' | 'done' | 'none'; 
+  label: string;
+  station: 'barista' | 'kitchen';
+}) => {
   if (status === 'none') return <span className="text-white/20 text-xs">—</span>;
   const config = {
     pending: 'bg-slate-700 text-slate-300',
-    process: 'bg-orange-500/30 text-orange-300 animate-pulse',
+    process: 'bg-orange-500/30 text-orange-300',
     done:    'bg-emerald-500/30 text-emerald-300',
   }[status];
-  const icon = { pending: 'schedule', process: 'autorenew', done: 'check_circle' }[status];
+
   return (
-    <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold ${config}`}>
-      <span className={`material-symbols-outlined text-[12px] ${status === 'process' ? 'animate-spin' : ''}`}>{icon}</span>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${config}`}>
+      {status === 'process' ? (
+        station === 'barista' ? (
+          <span className="relative flex items-center justify-center w-4 h-4 shrink-0">
+            <svg className="w-3.5 h-3.5 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path className="animate-steam-1" d="M7 6c0-1.5 1-1.5 1-3" />
+              <path className="animate-steam-2" d="M12 6c0-1.5 1-1.5 1-3" />
+              <path className="animate-steam-3" d="M17 6c0-1.5 1-1.5 1-3" />
+              <path d="M5 9h14v7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9z" />
+              <path d="M19 11h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2" />
+            </svg>
+          </span>
+        ) : (
+          <span className="relative flex items-center justify-center w-4 h-4 shrink-0">
+            <svg className="w-3.5 h-3.5 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <circle className="animate-fry-bounce-1" cx="6" cy="6" r="1.2" fill="currentColor" stroke="none" />
+              <circle className="animate-fry-bounce-2" cx="12" cy="4" r="1" fill="currentColor" stroke="none" />
+              <circle className="animate-fry-bounce-3" cx="17" cy="7" r="1.2" fill="currentColor" stroke="none" />
+              <path d="M18 13H4c0 2.2 1.8 4 4 4h8c2.2 0 4-1.8 4-4z" />
+              <path d="M18 14h4" strokeLinecap="round" />
+            </svg>
+          </span>
+        )
+      ) : (
+        <span className="material-symbols-outlined text-[14px]">
+          {status === 'pending' ? 'schedule' : 'check_circle'}
+        </span>
+      )}
       {label}
     </span>
   );
@@ -71,8 +123,21 @@ export default function KdsKasirScreen() {
       const kdsBarista = kdsOrders.find(k => k.id === `${ticketId}-B`);
       const kdsKitchen = kdsOrders.find(k => k.id === `${ticketId}-K`);
 
-      const baristaStatus = !hasBarista ? 'none' : (!kdsBarista ? 'done' : (kdsBarista.status === 'working' ? 'process' : 'pending'));
-      const kitchenStatus = !hasKitchen ? 'none' : (!kdsKitchen ? 'done' : (kdsKitchen.status === 'working' ? 'process' : 'pending'));
+      const baristaStatus = !hasBarista 
+        ? 'none' 
+        : (!kdsBarista 
+            ? 'done' 
+            : (kdsBarista.status === 'done' 
+                ? 'done' 
+                : (['working', 'urgent'].includes(kdsBarista.status) ? 'process' : 'pending')));
+
+      const kitchenStatus = !hasKitchen 
+        ? 'none' 
+        : (!kdsKitchen 
+            ? 'done' 
+            : (kdsKitchen.status === 'done' 
+                ? 'done' 
+                : (['working', 'urgent'].includes(kdsKitchen.status) ? 'process' : 'pending')));
 
       return {
         id: kdsKasir.id,
@@ -169,6 +234,7 @@ export default function KdsKasirScreen() {
 
   return (
     <div className="h-screen bg-[#06080f] text-white flex flex-col select-none">
+      <style dangerouslySetInnerHTML={{ __html: kdsStyles }} />
       {/* Header */}
       <header className="bg-[#0a0e1a]/90 backdrop-blur-md border-b border-blue-900/50 px-6 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
@@ -250,7 +316,7 @@ export default function KdsKasirScreen() {
                   <tr key={order.id} className={`border-b border-white/5 transition-colors hover:bg-white/5 ${idx % 2 === 0 ? '' : 'bg-white/[0.02]'} ${isReady ? 'bg-emerald-900/10' : ''}`}>
                     {/* Queue no */}
                     <td className="px-5 py-4">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg ${isReady ? 'bg-emerald-600' : isLate ? 'bg-red-600 animate-pulse' : 'bg-blue-600'}`}>
+                      <div className={`px-2 h-10 rounded-xl flex items-center justify-center font-black text-sm whitespace-nowrap min-w-[55px] w-fit ${isReady ? 'bg-emerald-600' : isLate ? 'bg-red-600 animate-pulse' : 'bg-blue-600'}`}>
                         {order.queue}
                       </div>
                     </td>
@@ -274,11 +340,11 @@ export default function KdsKasirScreen() {
                     </td>
                     {/* Barista */}
                     <td className="px-5 py-4 text-center">
-                      <StatusBadge status={order.baristaStatus} label={{ pending: 'Antrian', process: 'Dibuat', done: 'Siap' }[order.baristaStatus]} />
+                      <StatusBadge status={order.baristaStatus} label={{ pending: 'Antrian', process: 'Dibuat', done: 'Siap' }[order.baristaStatus]} station="barista" />
                     </td>
                     {/* Kitchen */}
                     <td className="px-5 py-4 text-center">
-                      <StatusBadge status={order.kitchenStatus} label={order.kitchenStatus !== 'none' ? { pending: 'Antrian', process: 'Masak', done: 'Siap' }[order.kitchenStatus as 'pending' | 'process' | 'done'] : '—'} />
+                      <StatusBadge status={order.kitchenStatus} label={order.kitchenStatus !== 'none' ? { pending: 'Antrian', process: 'Masak', done: 'Siap' }[order.kitchenStatus as 'pending' | 'process' | 'done'] : '—'} station="kitchen" />
                     </td>
                     {/* Overall status */}
                     <td className="px-5 py-4 text-center">

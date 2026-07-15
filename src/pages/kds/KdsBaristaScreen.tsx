@@ -29,6 +29,17 @@ const TYPE_ICON: Record<string, string> = {
   'ShopeeFood': 'delivery_dining',
 };
 
+const kdsStyles = `
+  @keyframes steam-rise {
+    0% { transform: translateY(2px) scale(0.9); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: translateY(-4px) scale(1.1); opacity: 0; }
+  }
+  .animate-steam-1 { animation: steam-rise 1.2s infinite ease-in-out; }
+  .animate-steam-2 { animation: steam-rise 1.2s infinite ease-in-out 0.4s; }
+  .animate-steam-3 { animation: steam-rise 1.2s infinite ease-in-out 0.8s; }
+`;
+
 export default function KdsBaristaScreen() {
   const { currentUser, logout } = useAuthStore();
   const { kdsOrders, setKdsOrders } = usePosStore();
@@ -133,6 +144,7 @@ export default function KdsBaristaScreen() {
 
   return (
     <div className="h-screen bg-[#0f0a07] text-white flex flex-col select-none">
+      <style dangerouslySetInnerHTML={{ __html: kdsStyles }} />
       {/* ── Top Bar ── */}
       <header className="bg-[#1a0e0a]/90 backdrop-blur-md border-b border-white/10 px-6 py-3 flex items-center justify-between z-20 shrink-0">
         <div className="flex items-center gap-3">
@@ -219,9 +231,22 @@ export default function KdsBaristaScreen() {
                         {order.customerName && <p className="text-white/90 font-bold text-base mt-1">{order.customerName}</p>}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-mono font-black text-white text-lg leading-none">{formatTime(order.timeInSeconds)}</p>
-                      <p className="text-white/60 text-[10px]">#{order.id}</p>
+                    <div className="text-right flex items-center gap-2">
+                      {order.status === 'working' && (
+                        <span className="relative flex items-center justify-center w-6 h-6 shrink-0 bg-white/10 rounded-lg">
+                          <svg className="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path className="animate-steam-1" d="M7 6c0-1.5 1-1.5 1-3" />
+                            <path className="animate-steam-2" d="M12 6c0-1.5 1-1.5 1-3" />
+                            <path className="animate-steam-3" d="M17 6c0-1.5 1-1.5 1-3" />
+                            <path d="M5 9h14v7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9z" />
+                            <path d="M19 11h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2" />
+                          </svg>
+                        </span>
+                      )}
+                      <div>
+                        <p className="font-mono font-black text-white text-lg leading-none">{formatTime(order.timeInSeconds)}</p>
+                        <p className="text-white/60 text-[10px]">#{order.id}</p>
+                      </div>
                     </div>
                   </div>
 

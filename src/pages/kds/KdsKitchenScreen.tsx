@@ -5,6 +5,16 @@ import { usePosStore } from '../../store/posStore';
 import { supabase } from '../../lib/supabase';
 import { KdsOrder } from '../../types';
 
+const kdsStyles = `
+  @keyframes fry-toss {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-4px) rotate(5deg); }
+  }
+  .animate-fry-bounce-1 { animation: fry-toss 1s infinite ease-in-out; }
+  .animate-fry-bounce-2 { animation: fry-toss 1s infinite ease-in-out 0.3s; }
+  .animate-fry-bounce-3 { animation: fry-toss 1s infinite ease-in-out 0.6s; }
+`;
+
 function formatTime(sec: number) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
@@ -121,6 +131,7 @@ export default function KdsKitchenScreen() {
 
   return (
     <div className="h-screen bg-[#070f0a] text-white flex flex-col select-none">
+      <style dangerouslySetInnerHTML={{ __html: kdsStyles }} />
       {/* Header */}
       <header className="bg-[#0a1a0e]/90 backdrop-blur-md border-b border-emerald-900/50 px-6 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
@@ -190,11 +201,24 @@ export default function KdsKitchenScreen() {
                       {order.customerName && <p className="text-white/90 font-bold text-lg mt-1">{order.customerName}</p>}
                       <p className="text-white/60 text-xs mt-1">#{order.id} · {order.type}</p>
                     </div>
-                    <div className="text-right">
-                      <p className={`font-mono font-black text-3xl ${isUrgent ? 'text-red-200 animate-pulse' : 'text-white'}`}>
-                        {formatTime(order.timeInSeconds)}
-                      </p>
-                      {isUrgent && <p className="text-red-200 text-xs font-bold animate-pulse">⚠️ TERLAMBAT</p>}
+                    <div className="text-right flex items-center gap-3">
+                      {(order.status === 'working' || order.status === 'urgent') && (
+                        <span className="relative flex items-center justify-center w-8 h-8 shrink-0 bg-white/10 rounded-xl">
+                          <svg className="w-5 h-5 text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <circle className="animate-fry-bounce-1" cx="6" cy="6" r="1.2" fill="currentColor" stroke="none" />
+                            <circle className="animate-fry-bounce-2" cx="12" cy="4" r="1" fill="currentColor" stroke="none" />
+                            <circle className="animate-fry-bounce-3" cx="17" cy="7" r="1.2" fill="currentColor" stroke="none" />
+                            <path d="M18 13H4c0 2.2 1.8 4 4 4h8c2.2 0 4-1.8 4-4z" />
+                            <path d="M18 14h4" strokeLinecap="round" />
+                          </svg>
+                        </span>
+                      )}
+                      <div>
+                        <p className={`font-mono font-black text-3xl ${isUrgent ? 'text-red-200 animate-pulse' : 'text-white'}`}>
+                          {formatTime(order.timeInSeconds)}
+                        </p>
+                        {isUrgent && <p className="text-red-200 text-xs font-bold animate-pulse">⚠️ TERLAMBAT</p>}
+                      </div>
                     </div>
                   </div>
 
