@@ -1,0 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  --color-primary: #44281a;
+  --color-background: #fff8f5;
+  --color-on-surface: #1e1b18;
+  --color-surface-container: #f5ece7;
+  --color-surface-container-low: #fbf2ed;
+  --color-surface-container-lowest: #ffffff;
+  
+  --animate-scan: scan 2.5s infinite ease-in-out;
+}
+
+@layer utilities {
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    display: inline-block;
+    line-height: 1;
+  }
+  
+  /* Custom scrollbar matching design specs */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #d4c3bc;
+    border-radius: 10px;
+  }
+  
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .input {
+    @apply w-full border border-slate-200 rounded-lg py-2.5 px-3 text-sm focus:outline-none focus:border-[#9e1a2f] bg-white transition-shadow;
+  }
+
+  .label {
+    @apply block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider;
+  }
+}
+
+@keyframes scan {
+  0%, 100% { top: 0%; }
+  50% { top: 100%; }
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background-color: #fff8f5;
+  color: #1e1b18;
+  overflow: hidden;
+}

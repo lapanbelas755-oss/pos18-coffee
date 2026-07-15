@@ -1,0 +1,6 @@
+{
+  "name": "Artisanal Brew Operations",
+  "description": "Unified POS, Kitchen Display System (KDS), Recipe Manager, Inventory Stock Count, Waste Log, Goods receiving QR scanner, and Financial P&L Suite for specialty coffee operations.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
