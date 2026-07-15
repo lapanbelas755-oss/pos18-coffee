@@ -12,15 +12,6 @@ export default function POSLogoutView() {
   useEffect(() => {
     logout();
   }, [logout]);
-    const user = login(pin);
-    if (user || pin === "1234") {
-      navigate("/pos");
-    } else {
-      setError(true);
-      setPin("");
-      setTimeout(() => setError(false), 2000);
-    }
-  };
 
   const handleNumpad = (num: string) => {
     if (pin.length < 4) {

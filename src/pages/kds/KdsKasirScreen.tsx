@@ -261,8 +261,8 @@ export default function KdsKasirScreen() {
                     </td>
                     {/* Customer */}
                     <td className="px-5 py-4">
-                      <p className="font-bold text-white/80">{order.customerName ?? '—'}</p>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${order.paymentStatus === 'Paid' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                      <p className="font-black text-lg text-white/90">{order.customerName ?? '—'}</p>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 mt-1 inline-block rounded-md ${order.paymentStatus === 'Paid' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
                         {order.paymentStatus}
                       </span>
                     </td>

@@ -45,13 +45,6 @@ export default function KdsBaristaScreen() {
   const [soundEnabled, setSoundEnabled] = useState(true);
 
   // Sound triggers
-  const prevActiveCount = useRef(activeOrders.length);
-  useEffect(() => {
-    if (activeOrders.length > prevActiveCount.current) {
-      speak("Ada pesanan baru di bar");
-    }
-    prevActiveCount.current = activeOrders.length;
-  }, [activeOrders.length]);
 
   // Text-to-Speech helper
   const speak = useCallback((text: string) => {
@@ -80,27 +73,20 @@ export default function KdsBaristaScreen() {
     }
   }, [soundEnabled]);
 
-  const handleSimulateOrder = async () => {
-    const newId = Math.floor(Math.random() * 9000 + 1000).toString();
-    const tableNo = Math.floor(Math.random() * 20 + 1);
-    const newOrder: KdsOrder = {
-      id: newId, type: 'Dine In', table: `Meja ${tableNo}`, timeInSeconds: 0,
-      status: 'incoming', station: 'barista',
-      items: [{ id: `b_${Date.now()}`, name: '1x Iced Latte', checked: false }],
-    };
-    setKdsOrders(prev => [newOrder, ...prev]);
-    await supabase.from('kds_orders').insert([newOrder]);
-  };
 
-  const prevOrdersCount = useRef(orders.length);
+
+  const prevActiveCount = useRef(activeOrders.length);
+  const prevHistoryCount = useRef(historyOrders.length);
   useEffect(() => {
-    if (orders.length > prevOrdersCount.current) {
-      speak("Ada pesanan minuman baru");
-    } else if (orders.length < prevOrdersCount.current) {
+    if (activeOrders.length > prevActiveCount.current) {
+      speak("Ada pesanan baru di bar");
+    }
+    if (historyOrders.length > prevHistoryCount.current) {
       speak("Pesanan minuman selesai");
     }
-    prevOrdersCount.current = orders.length;
-  }, [orders.length, speak]);
+    prevActiveCount.current = activeOrders.length;
+    prevHistoryCount.current = historyOrders.length;
+  }, [activeOrders.length, historyOrders.length, speak]);
 
   // Tick timers every second
   useEffect(() => {
@@ -185,10 +171,7 @@ export default function KdsBaristaScreen() {
             <span className="material-symbols-outlined text-[18px] text-white/50">{soundEnabled ? 'volume_up' : 'volume_off'}</span>
           </button>
 
-          {/* Simulate Order */}
-          <button onClick={handleSimulateOrder} className="px-3 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-blue-400 text-xs font-bold transition-colors">
-            + Simulasi Order
-          </button>
+
 
           {/* Logout */}
           <button onClick={handleLogout} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors" title="Ganti Pengguna">
@@ -230,10 +213,10 @@ export default function KdsBaristaScreen() {
                     <div className="flex items-center gap-2">
                       <span className="material-symbols-outlined text-white text-[18px]">{TYPE_ICON[order.type] ?? 'receipt'}</span>
                       <div>
-                        <p className="font-black text-white text-sm leading-none">
+                        <p className="font-black text-white text-lg leading-none">
                           {order.table ?? order.type}
                         </p>
-                        {order.customerName && <p className="text-white/70 text-[10px]">{order.customerName}</p>}
+                        {order.customerName && <p className="text-white/90 font-bold text-base mt-1">{order.customerName}</p>}
                       </div>
                     </div>
                     <div className="text-right">

@@ -53,25 +53,20 @@ export default function KdsKitchenScreen() {
     }
   }, [soundEnabled]);
 
-  const handleSimulateOrder = async () => {
-    const newId = Math.floor(Math.random() * 9000 + 1000).toString();
-    const tableNo = Math.floor(Math.random() * 20 + 1);
-    const newOrder: KdsOrder = {
-      id: newId, type: 'Dine In', table: `Meja ${tableNo}`, timeInSeconds: 0,
-      status: 'incoming', station: 'kitchen',
-      items: [{ id: `k_${Date.now()}`, name: 'Nasi Goreng Spesial', checked: false }],
-    };
-    setKdsOrders(prev => [newOrder, ...prev]);
-    await supabase.from('kds_orders').insert([newOrder]);
-  };
 
-  const prevOrdersCount = useRef(activeOrders.length);
+
+  const prevActiveCount = useRef(activeOrders.length);
+  const prevHistoryCount = useRef(historyOrders.length);
   useEffect(() => {
-    if (activeOrders.length > prevOrdersCount.current) {
+    if (activeOrders.length > prevActiveCount.current) {
       speak("Ada pesanan makanan baru");
     }
-    prevOrdersCount.current = activeOrders.length;
-  }, [activeOrders.length, speak]);
+    if (historyOrders.length > prevHistoryCount.current) {
+      speak("Pesanan makanan selesai");
+    }
+    prevActiveCount.current = activeOrders.length;
+    prevHistoryCount.current = historyOrders.length;
+  }, [activeOrders.length, historyOrders.length, speak]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -141,9 +136,6 @@ export default function KdsKitchenScreen() {
           <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors" title="Audio / Suara">
             <span className="material-symbols-outlined text-[18px] text-white/50">{soundEnabled ? 'volume_up' : 'volume_off'}</span>
           </button>
-          <button onClick={handleSimulateOrder} className="px-3 py-1.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-400 text-xs font-bold transition-colors">
-            + Simulasi Order
-          </button>
           <button onClick={() => { logout(); navigate('/kds'); }} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
             <span className="material-symbols-outlined text-[18px] text-white/50">logout</span>
           </button>
@@ -186,7 +178,7 @@ export default function KdsKitchenScreen() {
                   }`}>
                     <div>
                       <p className="font-black text-white text-2xl leading-none">{order.table ?? order.type}</p>
-                      {order.customerName && <p className="text-white/70 text-sm mt-0.5">{order.customerName}</p>}
+                      {order.customerName && <p className="text-white/90 font-bold text-lg mt-1">{order.customerName}</p>}
                       <p className="text-white/60 text-xs mt-1">#{order.id} · {order.type}</p>
                     </div>
                     <div className="text-right">

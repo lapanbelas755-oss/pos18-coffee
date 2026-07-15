@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { CartItem } from "../../types";
 import { calculateItemUnitPrice } from "../../utils/pricing";
@@ -17,6 +17,60 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
   // Tab Penuh State
   const [method, setMethod] = useState<"Cash" | "QRIS">("Cash");
   const [given, setGiven] = useState<string>("");
+  const [qrisUrl, setQrisUrl] = useState<string | null>(null);
+  const [qrisOrderId, setQrisOrderId] = useState<string | null>(null);
+  const [isGeneratingQris, setIsGeneratingQris] = useState(false);
+  // Check transaction status periodically if QRIS is active
+  useEffect(() => {
+    let interval: any;
+    if (method === "QRIS" && qrisOrderId) {
+      interval = setInterval(async () => {
+        try {
+          const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3002";
+          const res = await fetch(`${apiUrl}/api/qris/status/${qrisOrderId}`);
+          const data = await res.json();
+          if (data.success && (data.status === 'settlement' || data.status === 'capture')) {
+            clearInterval(interval);
+            onSuccess("QRIS", total, 0); // Sukses & Otomatis Selesai
+          }
+        } catch (e) {
+          console.error("Gagal mengecek status", e);
+        }
+      }, 5000); // Cek setiap 5 detik
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [method, qrisOrderId, total, onSuccess]);
+
+  const handleSelectQris = async () => {
+    setMethod("QRIS");
+    setIsGeneratingQris(true);
+    setQrisError(null);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3002";
+      const response = await fetch(`${apiUrl}/api/qris`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: Math.floor(Math.random() * 1000000).toString(),
+          gross_amount: total,
+          customer_name: "Customer POS"
+        })
+      });
+      const data = await response.json();
+      if (data.success && data.qr_url) {
+        setQrisUrl(data.qr_url);
+        setQrisOrderId(data.order_id);
+      } else {
+        setQrisError(data.error || "Gagal mendapatkan QRIS");
+      }
+    } catch (err) {
+      setQrisError("Gagal terhubung ke server pembayaran (API tidak aktif)");
+    } finally {
+      setIsGeneratingQris(false);
+    }
+  };
 
   // Tab Split (Pax) State
   const [splitBy, setSplitBy] = useState<number>(2);
@@ -143,7 +197,7 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
                   </button>
                   <button 
                     type="button"
-                    onClick={() => setMethod("QRIS")}
+                    onClick={handleSelectQris}
                     className={`py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 transition-all ${
                       method === "QRIS" ? "border-[#4d3227] bg-blue-50 text-[#4d3227]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
                     }`}
@@ -187,12 +241,41 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
               )}
 
               {method === "QRIS" && (
-                <div className="p-6 border border-slate-200 rounded-xl flex flex-col items-center justify-center bg-slate-50 animate-fade-in">
-                  <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 mb-4">
-                    <QRCodeSVG value={`QRIS-POS-${total}-${Date.now()}`} size={160} level="H" includeMargin={false} />
-                  </div>
-                  <p className="text-sm font-bold text-slate-700 text-center">Silakan scan QRIS di atas untuk membayar.</p>
-                  <p className="text-xs text-slate-500 mt-1">Tekan selesaikan setelah uang masuk ke rekening.</p>
+                <div className="p-6 border border-slate-200 rounded-xl flex flex-col items-center justify-center bg-slate-50 animate-fade-in min-h-[250px]">
+                  {isGeneratingQris ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-4 border-slate-300 border-t-blue-600 rounded-full animate-spin"></div>
+                      <p className="text-sm font-bold text-slate-500">Membuat QRIS Midtrans...</p>
+                    </div>
+                  ) : qrisError ? (
+                    <div className="text-center space-y-2">
+                      <span className="material-symbols-outlined text-red-500 text-4xl">error</span>
+                      <p className="text-sm font-bold text-slate-700">{qrisError}</p>
+                      <button onClick={handleSelectQris} className="text-xs bg-white border px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 mt-2 mx-auto">Coba Lagi</button>
+                    </div>
+                  ) : qrisUrl ? (
+                    <>
+                      <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 mb-4 flex items-center justify-center relative overflow-hidden group">
+                        <img src={qrisUrl} alt="QRIS Midtrans" className="w-[180px] h-[180px] object-contain mix-blend-multiply" />
+                      </div>
+                      <p className="text-[22px] font-black text-slate-800 text-center mb-1">Rp {total.toLocaleString("id-ID")}</p>
+                      <p className="text-sm font-bold text-slate-500 text-center flex items-center justify-center gap-1">
+                        <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
+                        Silakan scan QRIS dengan aplikasi pembayaran
+                      </p>
+                    </>
+                  ) : (
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span className="material-symbols-outlined text-blue-600 text-3xl">qr_code_scanner</span>
+                      </div>
+                      <p className="text-sm font-bold text-slate-700">Pembayaran Midtrans</p>
+                      <p className="text-xs text-slate-500 mt-1 mb-4">Buat gambar barcode QRIS Midtrans asli.</p>
+                      <button onClick={handleSelectQris} className="bg-[#4d3227] text-white px-6 py-2.5 rounded-xl font-bold shadow-sm hover:bg-[#3d271e] transition-colors">
+                        Buat Barcode QRIS
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
