@@ -99,7 +99,7 @@ const StatusBadge = ({
 
 export default function KdsKasirScreen() {
   const { currentUser, logout } = useAuthStore();
-  const { posOrders, kdsOrders } = usePosStore();
+  const { posOrders, kdsOrders, tables } = usePosStore();
   const navigate = useNavigate();
 
   // Create a stable mapping of real orders from Supabase
@@ -108,7 +108,12 @@ export default function KdsKasirScreen() {
     
     return kasirTickets.map(kdsKasir => {
       const ticketId = kdsKasir.id.replace('-KSR', '');
-      const po = posOrders.find(p => p.queue === ticketId || p.id === ticketId);
+      const po = posOrders.find(p => 
+        p.queue === ticketId || 
+        p.id === ticketId || 
+        p.id === `INV-${ticketId}` ||
+        p.id.replace('INV-', '') === ticketId
+      );
       
       let hasBarista = true;
       let hasKitchen = true;
@@ -139,10 +144,20 @@ export default function KdsKasirScreen() {
                 ? 'done' 
                 : (['working', 'urgent'].includes(kdsKitchen.status) ? 'process' : 'pending')));
 
+      // Translate table ID to Table Name (e.g. table-xxxx -> 08)
+      let tableDisplay = kdsKasir.table && kdsKasir.table !== '-' ? kdsKasir.table : undefined;
+      const rawTable = tableDisplay || po?.table;
+      if (rawTable && rawTable.startsWith('table-')) {
+        const foundTab = tables.find(t => t.id === rawTable);
+        if (foundTab) tableDisplay = foundTab.name;
+      } else if (rawTable) {
+        tableDisplay = rawTable;
+      }
+
       return {
         id: kdsKasir.id,
         queue: ticketId,
-        table: kdsKasir.table && kdsKasir.table !== '-' ? kdsKasir.table : undefined,
+        table: tableDisplay,
         type: kdsKasir.type as OrderType,
         customerName: kdsKasir.customerName || po?.customerName,
         timeInSeconds: kdsKasir.timeInSeconds,
@@ -153,7 +168,7 @@ export default function KdsKasirScreen() {
         status: kdsKasir.status
       };
     });
-  }, [posOrders, kdsOrders]);
+  }, [posOrders, kdsOrders, tables]);
 
   const [filter, setFilter] = useState<'all' | OrderType>('all');
   const [activeTab, setActiveTab] = useState<'aktif' | 'riwayat'>('aktif');

@@ -4,6 +4,8 @@ import { useAuthStore } from '../../store/authStore';
 import { usePosStore } from '../../store/posStore';
 import { supabase } from '../../lib/supabase';
 import { KdsOrder, KdsItem } from '../../types';
+import { printerManager } from '../../lib/bluetoothPrinter';
+import { buildKdsTicketData } from '../../utils/escpos';
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -42,7 +44,7 @@ const kdsStyles = `
 
 export default function KdsBaristaScreen() {
   const { currentUser, logout } = useAuthStore();
-  const { kdsOrders, setKdsOrders } = usePosStore();
+  const { kdsOrders, setKdsOrders, tables } = usePosStore();
   const navigate = useNavigate();
 
   const allBaristaOrders = kdsOrders.filter(o => o.station === 'barista' || o.station === 'all');
@@ -54,6 +56,33 @@ export default function KdsBaristaScreen() {
 
   const [clock, setClock] = useState(new Date());
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const [isPrinterConnected, setPrinterConnected] = useState(!!printerManager.device);
+  const [isConnectingPrinter, setIsConnectingPrinter] = useState(false);
+
+  useEffect(() => {
+    const handleDisconnect = () => setPrinterConnected(false);
+    window.addEventListener('printer-disconnected', handleDisconnect);
+    return () => window.removeEventListener('printer-disconnected', handleDisconnect);
+  }, []);
+
+  const handleConnectPrinter = async () => {
+    try {
+      if (isPrinterConnected) {
+        printerManager.disconnect();
+        setPrinterConnected(false);
+      } else {
+        setIsConnectingPrinter(true);
+        await new Promise(resolve => setTimeout(resolve, 600));
+        const success = await printerManager.connect();
+        if (success) {
+          setPrinterConnected(true);
+        }
+      }
+    } catch (err) {} finally {
+      setIsConnectingPrinter(false);
+    }
+  };
 
   // Sound triggers
 
@@ -91,13 +120,33 @@ export default function KdsBaristaScreen() {
   useEffect(() => {
     if (activeOrders.length > prevActiveCount.current) {
       speak("Ada pesanan baru di bar");
+      
+      // Auto print barista ticket
+      if (isPrinterConnected) {
+        const newestOrder = activeOrders[activeOrders.length - 1];
+        if (newestOrder) {
+          const itemsForPrint = newestOrder.items.map(it => ({
+            name: it.name,
+            qty: 1,
+            notes: it.notes
+          }));
+          const ticketBytes = buildKdsTicketData(
+            newestOrder.id.replace('INV-', ''),
+            'Barista',
+            itemsForPrint,
+            newestOrder.customerName || `Meja ${newestOrder.table || '-'}`,
+            false
+          );
+          printerManager.print(ticketBytes);
+        }
+      }
     }
     if (historyOrders.length > prevHistoryCount.current) {
       speak("Pesanan minuman selesai");
     }
     prevActiveCount.current = activeOrders.length;
     prevHistoryCount.current = historyOrders.length;
-  }, [activeOrders.length, historyOrders.length, speak]);
+  }, [activeOrders.length, historyOrders.length, speak, isPrinterConnected]);
 
   // Tick timers every second
   useEffect(() => {
@@ -178,6 +227,20 @@ export default function KdsBaristaScreen() {
             <p className="text-white/30 text-[10px]">{clock.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
           </div>
 
+          {/* Printer button */}
+          <button
+            onClick={handleConnectPrinter}
+            className={`p-2 rounded-xl flex items-center justify-center gap-1.5 font-bold text-xs transition-all cursor-pointer ${
+              isPrinterConnected 
+                ? "bg-green-600/35 border border-green-500 text-green-300" 
+                : "bg-white/5 hover:bg-white/10 text-white/50"
+            }`}
+            title={isPrinterConnected ? "Printer Bluetooth Terhubung" : "Konek Printer Bluetooth"}
+          >
+            <span className="material-symbols-outlined text-[18px]">print</span>
+            <span className="hidden md:inline">{isPrinterConnected ? "Printer Aktif" : "Konek Printer"}</span>
+          </button>
+
           {/* Sound toggle */}
           <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
             <span className="material-symbols-outlined text-[18px] text-white/50">{soundEnabled ? 'volume_up' : 'volume_off'}</span>
@@ -218,6 +281,15 @@ export default function KdsBaristaScreen() {
               const st = getStatusStyle(order.status, order.timeInSeconds);
               const allChecked = order.items.every(i => i.checked);
 
+              const displayTable = (() => {
+                const rawTable = order.table;
+                if (rawTable && rawTable.startsWith('table-')) {
+                  const foundTab = tables.find(t => t.id === rawTable);
+                  return foundTab ? foundTab.name : rawTable;
+                }
+                return rawTable || order.type;
+              })();
+
               return (
                 <div key={order.id} className={`bg-[#1c1108] border border-white/10 rounded-2xl overflow-hidden flex flex-col ${st.ring} transition-all duration-300`}>
                   {/* Card Header */}
@@ -226,7 +298,7 @@ export default function KdsBaristaScreen() {
                       <span className="material-symbols-outlined text-white text-[18px]">{TYPE_ICON[order.type] ?? 'receipt'}</span>
                       <div>
                         <p className="font-black text-white text-lg leading-none">
-                          {order.table ?? order.type}
+                          {displayTable}
                         </p>
                         {order.customerName && <p className="text-white/90 font-bold text-base mt-1">{order.customerName}</p>}
                       </div>
@@ -325,6 +397,29 @@ export default function KdsBaristaScreen() {
           <p className="text-emerald-400 text-xs font-bold">Live</p>
         </div>
       </div>
+
+      {/* Custom Bluetooth Connecting Modal Guide */}
+      {isConnectingPrinter && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-xs shadow-2xl text-center text-slate-800">
+            <div className="relative w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-amber-800/10 animate-ping duration-1000"></div>
+              <div className="absolute inset-2 rounded-full border-4 border-amber-800/20 animate-ping duration-1000 delay-300"></div>
+              <div className="w-14 h-14 bg-amber-800/10 text-amber-800 rounded-2xl flex items-center justify-center shadow-inner relative z-10">
+                <span className="material-symbols-outlined text-3xl animate-pulse">print_connect</span>
+              </div>
+            </div>
+            <h3 className="font-black text-base">Menghubungkan Printer</h3>
+            <p className="text-slate-500 text-[10px] mt-2 px-2 leading-relaxed">
+              Sedang memindai perangkat Bluetooth...
+            </p>
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200/50 rounded-xl text-[10px] text-amber-800 font-bold leading-relaxed text-left flex items-start gap-2">
+              <span className="material-symbols-outlined text-base text-amber-700 shrink-0">info</span>
+              <span>Silakan pilih nama printer Bluetooth Anda (contoh: <strong>RPP02</strong>) pada jendela browser yang muncul di atas layar untuk menyelesaikan sambungan.</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

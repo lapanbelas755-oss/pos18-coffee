@@ -40,15 +40,29 @@ export default function KdsLoginScreen() {
   const preview = employees.find(e => e.pin === pin && e.status === 'Aktif') ?? null;
 
   const handleKey = useCallback((digit: string) => {
-    if (pin.length >= 6) return;
+    if (pin.length >= 4) return;
     setError('');
     const next = pin + digit;
     setPin(next);
 
     const found = employees.find(e => e.pin === next && e.status === 'Aktif');
-    if (found) setMatchedUser(found);
-    else setMatchedUser(null);
-  }, [pin, employees]);
+    if (found) {
+      setMatchedUser(found);
+      const user = login(next);
+      if (user) {
+        setTimeout(() => {
+          const p = user.permissions;
+          if (p.kdsBarista) navigate('/kds/barista');
+          else if (p.kdsKitchen) navigate('/kds/kitchen');
+          else if (p.kdsKasir) navigate('/kds/kasir');
+          else if (p.pos) navigate('/pos');
+          else if (p.admin) navigate('/admin');
+        }, 200);
+      }
+    } else {
+      setMatchedUser(null);
+    }
+  }, [pin, employees, login, navigate]);
 
   const handleBackspace = () => {
     setPin(p => p.slice(0, -1));
@@ -78,7 +92,7 @@ export default function KdsLoginScreen() {
     }
   }, [pin, login, navigate]);
 
-  const dots = Array.from({ length: 6 }, (_, i) => i < pin.length);
+  const dots = Array.from({ length: 4 }, (_, i) => i < pin.length);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a0e0a] via-[#2d1a10] to-[#1a0e0a] flex flex-col items-center justify-center p-4 select-none">

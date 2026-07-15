@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 
 export default function AdminLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -214,8 +215,12 @@ export default function AdminLayout() {
             <button className="relative text-slate-400 hover:text-[#4a2d21]">
               <span className="material-symbols-outlined text-[24px]">assignment</span>
             </button>
-            <div className="w-8 h-8 rounded-full bg-[#4a2d21] text-white flex items-center justify-center font-bold text-sm shadow-sm cursor-pointer hover:bg-[#382016] transition-colors">
-              L
+            <div 
+              onClick={() => setShowLogoutModal(true)}
+              className="w-8 h-8 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center shadow-sm cursor-pointer hover:bg-red-500/20 transition-all active:scale-95"
+              title="Logout Admin"
+            >
+              <span className="material-symbols-outlined text-[18px] font-bold">logout</span>
             </div>
           </div>
         </header>
@@ -224,6 +229,36 @@ export default function AdminLayout() {
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
           <Outlet />
         </div>
+
+        {/* Custom Logout Modal */}
+        {showLogoutModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4 transition-all duration-300">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-xs shadow-2xl text-center scale-100 transition-all duration-300">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-700 mx-auto mb-4">
+                <span className="material-symbols-outlined text-2xl">logout</span>
+              </div>
+              <h3 className="text-slate-800 font-black text-base">Konfirmasi Keluar</h3>
+              <p className="text-slate-500 text-xs mt-2 px-2 leading-relaxed">Apakah Anda yakin ingin keluar dari Area Admin? Sesi Anda akan diakhiri.</p>
+              <div className="flex gap-3 mt-6">
+                <button 
+                  onClick={() => setShowLogoutModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 active:scale-98 text-slate-600 font-bold text-xs transition-all cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={() => {
+                    localStorage.removeItem("admin_authorized");
+                    window.location.reload();
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-800 hover:bg-amber-900 active:scale-98 text-white font-bold text-xs transition-all shadow-md shadow-amber-900/10 cursor-pointer"
+                >
+                  Ya, Keluar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

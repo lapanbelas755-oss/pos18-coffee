@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import React, { useState, useCallback } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import AdminLayout from "../../layouts/AdminLayout";
 import { initialStockItems, initialRecipes, initialWasteLogs, initialTransactions, initialKdsOrders, initialOrders } from "../../data";
 import { Product, StockItem, RecipeItem, WasteLog, Transaction, KdsOrder, Order, TableData } from "../../types";
@@ -17,6 +17,117 @@ import QueueDisplayAdmin from "./QueueDisplayAdmin";
 import ReportAdmin from "./ReportAdmin";
 import EmployeeAdmin from "./EmployeeAdmin";
 
+function AdminPinLogin({ onAuthorized }: { onAuthorized: () => void }) {
+  const navigate = useNavigate();
+  const { employees } = useAuthStore();
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const [shake, setShake] = useState(false);
+
+  const handleKey = useCallback((digit: string) => {
+    if (pin.length >= 4) return;
+    setError('');
+    const nextPin = pin + digit;
+    setPin(nextPin);
+
+    if (nextPin.length === 4) {
+      const user = employees.find(e => e.pin === nextPin && e.status === 'Aktif');
+      if (!user) {
+        setError('PIN tidak dikenali atau akun nonaktif');
+        setShake(true);
+        setTimeout(() => { setShake(false); setPin(''); }, 600);
+        return;
+      }
+
+      if (user.role !== 'Manajer' && user.role !== 'Admin') {
+        setError('Akses ditolak. Hanya Manajer atau Owner yang diizinkan.');
+        setShake(true);
+        setTimeout(() => { setShake(false); setPin(''); }, 600);
+        return;
+      }
+
+      onAuthorized();
+    }
+  }, [pin, employees, onAuthorized]);
+
+  const handleBackspace = () => {
+    setPin(p => p.slice(0, -1));
+    setError('');
+  };
+
+  const dots = Array.from({ length: 4 }, (_, i) => i < pin.length);
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 select-none">
+      <div className="mb-6 flex flex-col items-center gap-2">
+        <div className="w-14 h-14 bg-gradient-to-br from-amber-800 to-amber-950 rounded-2xl flex items-center justify-center shadow-xl">
+          <span className="text-white font-black text-xl">18</span>
+        </div>
+        <p className="text-slate-800 font-extrabold text-sm tracking-wide">POS18 Coffee</p>
+      </div>
+
+      <div className={`bg-white border border-slate-200/80 rounded-3xl p-8 w-full max-w-sm shadow-2xl transition-all ${shake ? 'animate-shake' : ''}`}>
+        <div className="flex flex-col items-center mb-6 justify-center">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-600 mb-2">
+            <span className="material-symbols-outlined text-2xl">admin_panel_settings</span>
+          </div>
+          <h2 className="text-slate-800 font-black text-lg">Akses Area Admin</h2>
+          <p className="text-slate-500 text-xs text-center mt-1">Masukkan PIN khusus Owner atau Manajer</p>
+        </div>
+
+        <div className="flex justify-center gap-3 mb-6">
+          {dots.map((filled, i) => (
+            <div key={i} className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-200 ${filled ? 'bg-amber-600 border-amber-600 scale-125' : 'bg-transparent border-slate-300'}`} />
+          ))}
+        </div>
+
+        {error && (
+          <p className="text-center text-red-500 text-xs font-bold mb-4 px-2">{error}</p>
+        )}
+
+        <div className="grid grid-cols-3 gap-3">
+          {['1','2','3','4','5','6','7','8','9'].map(d => (
+            <button key={d} onClick={() => handleKey(d)}
+              className="h-14 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-800 font-bold text-lg transition-all duration-100 border border-slate-200/50 shadow-sm">
+              {d}
+            </button>
+          ))}
+          <button onClick={handleBackspace}
+            className="h-14 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-500 font-bold transition-all duration-100 flex items-center justify-center border border-slate-200/50 shadow-sm">
+            <span className="material-symbols-outlined text-lg">backspace</span>
+          </button>
+          <button onClick={() => handleKey('0')}
+            className="h-14 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-800 font-bold text-lg transition-all duration-100 border border-slate-200/50 shadow-sm">
+            0
+          </button>
+          <button onClick={() => {}} disabled={true}
+            className="h-14 rounded-2xl bg-slate-100 text-slate-400 active:scale-95 font-bold transition-all duration-100 flex items-center justify-center cursor-not-allowed">
+            <span className="material-symbols-outlined text-xl">lock</span>
+          </button>
+        </div>
+
+        <div className="mt-6 pt-5 border-t border-slate-100 flex justify-center">
+          <button onClick={() => navigate('/pos')} className="text-xs text-slate-500 hover:text-slate-800 transition-colors font-bold flex items-center gap-1">
+            <span className="material-symbols-outlined text-sm">arrow_back</span>
+            Kembali ke POS
+          </button>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes shake {
+          0%,100% { transform: translateX(0); }
+          20% { transform: translateX(-8px); }
+          40% { transform: translateX(8px); }
+          60% { transform: translateX(-5px); }
+          80% { transform: translateX(5px); }
+        }
+        .animate-shake { animation: shake 0.5s ease-in-out; }
+      `}</style>
+    </div>
+  );
+}
+
 interface ToastNotification {
   id: string;
   message: string;
@@ -24,11 +135,10 @@ interface ToastNotification {
 }
 
 export default function AdminApp() {
-  const { currentUser } = useAuthStore();
+  const [isAdminAuthorized, setIsAdminAuthorized] = useState(() => {
+    return localStorage.getItem("admin_authorized") === "true";
+  });
   
-  if (!currentUser?.permissions?.admin) {
-    return <Navigate to="/pos" replace />;
-  }
   const [products, setProducts] = useState<Product[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [recipes, setRecipes] = useState<RecipeItem[]>([]);
@@ -119,6 +229,15 @@ export default function AdminApp() {
       supabase.removeChannel(ordersSub);
     };
   }, []);
+
+  if (!isAdminAuthorized) {
+    return (
+      <AdminPinLogin onAuthorized={() => {
+        setIsAdminAuthorized(true);
+        localStorage.setItem("admin_authorized", "true");
+      }} />
+    );
+  }
 
   return (
     <>

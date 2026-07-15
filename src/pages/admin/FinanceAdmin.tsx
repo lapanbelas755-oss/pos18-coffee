@@ -22,6 +22,25 @@ export default function FinanceAdmin({ transactions, setTransactions, onNotify }
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [showHppModal, setShowHppModal] = useState(false);
+  const [recipes, setRecipes] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    const fetchRecipes = async () => {
+      const { data } = await supabase.from('recipes').select('*').order('name');
+      if (data) {
+        setRecipes(data.map(r => ({
+          name: r.name,
+          cogs: r.cogs || 0,
+          sellPrice: r.sell_price || 0,
+          profitMargin: r.profit_margin || 0
+        })));
+      }
+    };
+    if (showHppModal) {
+      fetchRecipes();
+    }
+  }, [showHppModal]);
+
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [form, setForm] = useState<Omit<Transaction, "id">>(EMPTY_TX);
   const [receiptUrl, setReceiptUrl] = useState("");
@@ -325,22 +344,25 @@ export default function FinanceAdmin({ transactions, setTransactions, onNotify }
                   </tr>
                 </thead>
                 <tbody>
-                  {[
-                    { name: "Latte Vanila", cogs: 11400, sellPrice: 55000, profitMargin: 79.2 },
-                    { name: "Espresso Ganda", cogs: 4200, sellPrice: 32000, profitMargin: 86.8 },
-                    { name: "Kopi Cold Brew", cogs: 8800, sellPrice: 48000, profitMargin: 81.6 },
-                    { name: "Flat White Oat", cogs: 13200, sellPrice: 52000, profitMargin: 74.6 },
-                  ].map((r, i) => (
-                    <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
-                      <td className="px-4 py-4 font-extrabold text-slate-800">{r.name}</td>
-                      <td className="px-4 py-4 text-right font-medium text-red-600">Rp {r.cogs.toLocaleString("id-ID")}</td>
-                      <td className="px-4 py-4 text-right font-black text-slate-800">Rp {r.sellPrice.toLocaleString("id-ID")}</td>
-                      <td className="px-4 py-4 text-right font-black text-green-600">Rp {(r.sellPrice - r.cogs).toLocaleString("id-ID")}</td>
-                      <td className="px-4 py-4 text-center">
-                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded-md font-bold text-xs">{r.profitMargin}%</span>
+                  {recipes.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-slate-400 italic">
+                        Tidak ada data resep / sedang memuat...
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    recipes.map((r, i) => (
+                      <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="px-4 py-4 font-extrabold text-slate-800">{r.name}</td>
+                        <td className="px-4 py-4 text-right font-medium text-red-600">Rp {r.cogs.toLocaleString("id-ID")}</td>
+                        <td className="px-4 py-4 text-right font-black text-slate-800">Rp {r.sellPrice.toLocaleString("id-ID")}</td>
+                        <td className="px-4 py-4 text-right font-black text-green-600">Rp {Math.max(0, r.sellPrice - r.cogs).toLocaleString("id-ID")}</td>
+                        <td className="px-4 py-4 text-center">
+                          <span className="bg-green-100 text-green-700 px-2 py-1 rounded-md font-bold text-xs">{r.profitMargin}%</span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

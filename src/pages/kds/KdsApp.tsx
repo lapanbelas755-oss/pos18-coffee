@@ -28,7 +28,7 @@ function KdsGuard({ permKey, children }: { permKey: keyof import('../../types').
 }
 
 export default function KdsApp() {
-  const { setKdsOrders, setPosOrders } = usePosStore();
+  const { setKdsOrders, setPosOrders, setTables } = usePosStore();
 
   useEffect(() => {
     const fetchKds = async () => {
@@ -43,20 +43,28 @@ export default function KdsApp() {
       const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
       if (data) setPosOrders(data as any[]); // types might need mapping, we'll assume it matches for now
     };
+    const fetchTables = async () => {
+      const { data } = await supabase.from('tables').select('*').order('id');
+      if (data) setTables(() => data as any[]);
+    };
 
     fetchKds();
     fetchOrders();
+    fetchTables();
 
     const sub1 = supabase.channel('kdsapp-kds')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'kds_orders' }, fetchKds).subscribe();
     const sub2 = supabase.channel('kdsapp-orders')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchOrders).subscribe();
+    const sub3 = supabase.channel('kdsapp-tables')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, fetchTables).subscribe();
 
     return () => {
       supabase.removeChannel(sub1);
       supabase.removeChannel(sub2);
+      supabase.removeChannel(sub3);
     };
-  }, [setKdsOrders, setPosOrders]);
+  }, [setKdsOrders, setPosOrders, setTables]);
 
   return (
     <Routes>

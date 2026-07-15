@@ -41,6 +41,7 @@ export default function CartPanel({
   const [appliedPromo, setAppliedPromo] = useState<Promo | null>(null);
   const [showPromoModal, setShowPromoModal] = useState(false);
   const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [isConnectingPrinter, setIsConnectingPrinter] = useState(false);
 
   const handleConnectPrinter = async () => {
     try {
@@ -49,6 +50,10 @@ export default function CartPanel({
         setPrinterConnected(false);
         triggerToast("Printer terputus", "info");
       } else {
+        setIsConnectingPrinter(true);
+        // Delay to allow UI to render first
+        await new Promise(resolve => setTimeout(resolve, 600));
+        
         const success = await printerManager.connect();
         if (success) {
           setPrinterConnected(true);
@@ -57,6 +62,8 @@ export default function CartPanel({
       }
     } catch (err: any) {
       triggerToast(err.message || "Gagal menghubungkan printer", "warning");
+    } finally {
+      setIsConnectingPrinter(false);
     }
   };
 
@@ -493,6 +500,34 @@ export default function CartPanel({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Bluetooth Connecting Modal Guide */}
+      {isConnectingPrinter && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-xs shadow-2xl text-center">
+            {/* Spinning coffee radar animation */}
+            <div className="relative w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+              {/* Radar rings */}
+              <div className="absolute inset-0 rounded-full border-4 border-amber-800/10 animate-ping duration-1000"></div>
+              <div className="absolute inset-2 rounded-full border-4 border-amber-800/20 animate-ping duration-1000 delay-300"></div>
+              {/* Center icon */}
+              <div className="w-14 h-14 bg-amber-800/10 text-amber-800 rounded-2xl flex items-center justify-center shadow-inner relative z-10">
+                <span className="material-symbols-outlined text-3xl animate-pulse">print_connect</span>
+              </div>
+            </div>
+            
+            <h3 className="text-slate-800 font-black text-base">Menghubungkan Printer</h3>
+            <p className="text-slate-500 text-[10px] mt-2 px-2 leading-relaxed">
+              Sedang memindai perangkat Bluetooth...
+            </p>
+            
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200/50 rounded-xl text-[10px] text-amber-800 font-bold leading-relaxed text-left flex items-start gap-2">
+              <span className="material-symbols-outlined text-base text-amber-700 shrink-0">info</span>
+              <span>Silakan pilih nama printer Bluetooth Anda (contoh: <strong>RPP02</strong>) pada jendela browser yang muncul di atas layar untuk menyelesaikan sambungan.</span>
+            </div>
           </div>
         </div>
       )}

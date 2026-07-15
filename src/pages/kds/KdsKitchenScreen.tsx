@@ -4,6 +4,8 @@ import { useAuthStore } from '../../store/authStore';
 import { usePosStore } from '../../store/posStore';
 import { supabase } from '../../lib/supabase';
 import { KdsOrder } from '../../types';
+import { printerManager } from '../../lib/bluetoothPrinter';
+import { buildKdsTicketData } from '../../utils/escpos';
 
 const kdsStyles = `
   @keyframes fry-toss {
@@ -23,7 +25,7 @@ function formatTime(sec: number) {
 
 export default function KdsKitchenScreen() {
   const { currentUser, logout } = useAuthStore();
-  const { kdsOrders, setKdsOrders } = usePosStore();
+  const { kdsOrders, setKdsOrders, tables } = usePosStore();
   const navigate = useNavigate();
   
   const allKitchenOrders = kdsOrders.filter(o => o.station === 'kitchen' || o.station === 'all');
@@ -35,6 +37,33 @@ export default function KdsKitchenScreen() {
   
   const [clock, setClock] = useState(new Date());
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const [isPrinterConnected, setPrinterConnected] = useState(!!printerManager.device);
+  const [isConnectingPrinter, setIsConnectingPrinter] = useState(false);
+
+  useEffect(() => {
+    const handleDisconnect = () => setPrinterConnected(false);
+    window.addEventListener('printer-disconnected', handleDisconnect);
+    return () => window.removeEventListener('printer-disconnected', handleDisconnect);
+  }, []);
+
+  const handleConnectPrinter = async () => {
+    try {
+      if (isPrinterConnected) {
+        printerManager.disconnect();
+        setPrinterConnected(false);
+      } else {
+        setIsConnectingPrinter(true);
+        await new Promise(resolve => setTimeout(resolve, 600));
+        const success = await printerManager.connect();
+        if (success) {
+          setPrinterConnected(true);
+        }
+      }
+    } catch (err) {} finally {
+      setIsConnectingPrinter(false);
+    }
+  };
 
   // Text-to-Speech helper
   const speak = useCallback((text: string) => {
@@ -70,13 +99,33 @@ export default function KdsKitchenScreen() {
   useEffect(() => {
     if (activeOrders.length > prevActiveCount.current) {
       speak("Ada pesanan makanan baru");
+      
+      // Auto print kitchen ticket
+      if (isPrinterConnected) {
+        const newestOrder = activeOrders[activeOrders.length - 1];
+        if (newestOrder) {
+          const itemsForPrint = newestOrder.items.map(it => ({
+            name: it.name,
+            qty: 1,
+            notes: it.notes
+          }));
+          const ticketBytes = buildKdsTicketData(
+            newestOrder.id.replace('INV-', ''),
+            'Kitchen',
+            itemsForPrint,
+            newestOrder.customerName || `Meja ${newestOrder.table || '-'}`,
+            false
+          );
+          printerManager.print(ticketBytes);
+        }
+      }
     }
     if (historyOrders.length > prevHistoryCount.current) {
       speak("Pesanan makanan selesai");
     }
     prevActiveCount.current = activeOrders.length;
     prevHistoryCount.current = historyOrders.length;
-  }, [activeOrders.length, historyOrders.length, speak]);
+  }, [activeOrders.length, historyOrders.length, speak, isPrinterConnected]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -153,6 +202,18 @@ export default function KdsKitchenScreen() {
           <div className="font-mono text-white text-sm hidden sm:block">
             {clock.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
+          <button
+            onClick={handleConnectPrinter}
+            className={`p-2 rounded-xl flex items-center justify-center gap-1.5 font-bold text-xs transition-all cursor-pointer ${
+              isPrinterConnected 
+                ? "bg-green-600/35 border border-green-500 text-green-300" 
+                : "bg-white/5 hover:bg-white/10 text-white/50"
+            }`}
+            title={isPrinterConnected ? "Printer Bluetooth Terhubung" : "Konek Printer Bluetooth"}
+          >
+            <span className="material-symbols-outlined text-[18px]">print</span>
+            <span className="hidden md:inline">{isPrinterConnected ? "Printer Aktif" : "Konek Printer"}</span>
+          </button>
           <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors" title="Audio / Suara">
             <span className="material-symbols-outlined text-[18px] text-white/50">{soundEnabled ? 'volume_up' : 'volume_off'}</span>
           </button>
@@ -186,6 +247,15 @@ export default function KdsKitchenScreen() {
               const isWorking = order.status === 'working' || order.timeInSeconds > 300;
               const allChecked = order.items.every(i => i.checked);
 
+              const displayTable = (() => {
+                const rawTable = order.table;
+                if (rawTable && rawTable.startsWith('table-')) {
+                  const foundTab = tables.find(t => t.id === rawTable);
+                  return foundTab ? foundTab.name : rawTable;
+                }
+                return rawTable || order.type;
+              })();
+
               return (
                 <div key={order.id} className={`rounded-2xl overflow-hidden flex flex-col border transition-all ${
                   isUrgent  ? 'border-red-500   bg-red-950/40   shadow-lg shadow-red-900/30' :
@@ -197,7 +267,7 @@ export default function KdsKitchenScreen() {
                     isUrgent ? 'bg-red-700' : isWorking ? 'bg-orange-600' : 'bg-emerald-800'
                   }`}>
                     <div>
-                      <p className="font-black text-white text-2xl leading-none">{order.table ?? order.type}</p>
+                      <p className="font-black text-white text-2xl leading-none">{displayTable}</p>
                       {order.customerName && <p className="text-white/90 font-bold text-lg mt-1">{order.customerName}</p>}
                       <p className="text-white/60 text-xs mt-1">#{order.id} · {order.type}</p>
                     </div>
@@ -309,6 +379,29 @@ export default function KdsKitchenScreen() {
           <p className="text-emerald-400 text-xs font-bold">Live</p>
         </div>
       </div>
+
+      {/* Custom Bluetooth Connecting Modal Guide */}
+      {isConnectingPrinter && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-xs shadow-2xl text-center text-slate-800">
+            <div className="relative w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-amber-800/10 animate-ping duration-1000"></div>
+              <div className="absolute inset-2 rounded-full border-4 border-amber-800/20 animate-ping duration-1000 delay-300"></div>
+              <div className="w-14 h-14 bg-amber-800/10 text-amber-800 rounded-2xl flex items-center justify-center shadow-inner relative z-10">
+                <span className="material-symbols-outlined text-3xl animate-pulse">print_connect</span>
+              </div>
+            </div>
+            <h3 className="font-black text-base">Menghubungkan Printer</h3>
+            <p className="text-slate-500 text-[10px] mt-2 px-2 leading-relaxed">
+              Sedang memindai perangkat Bluetooth...
+            </p>
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200/50 rounded-xl text-[10px] text-amber-800 font-bold leading-relaxed text-left flex items-start gap-2">
+              <span className="material-symbols-outlined text-base text-amber-700 shrink-0">info</span>
+              <span>Silakan pilih nama printer Bluetooth Anda (contoh: <strong>RPP02</strong>) pada jendela browser yang muncul di atas layar untuk menyelesaikan sambungan.</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
