@@ -40,7 +40,9 @@ export function buildReceiptData(
   change?: number,
   customerName?: string,
   discountName?: string,
-  isPaid: boolean = true
+  isPaid: boolean = true,
+  table?: string,
+  queue?: string
 ): Uint8Array {
   const charsPerLine = 32; // Default for 58mm printer
   let buffer: number[] = [];
@@ -79,7 +81,10 @@ export function buildReceiptData(
   // Order Info
   addCommand(ESC_POS.ALIGN_LEFT);
   addLine(`ID: #${orderId}`);
-  if (customerName) {
+  if (queue) addLine(`ANTRIAN: ${queue}`);
+  if (table) {
+    addLine(`MEJA: ${table}`);
+  } else if (customerName) {
     addLine(`NAMA: ${customerName}`);
   }
   addLine(`STATUS: ${isPaid ? 'LUNAS' : 'BELUM LUNAS'}`);

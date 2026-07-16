@@ -203,6 +203,8 @@ export default function PosApp() {
     paymentMethod?: string;
     amountGiven?: number;
     change?: number;
+    queue?: string;
+    table?: string;
   } | null>(null);
 
   const triggerToast = (message: string, type: "success" | "warning" | "info" = "success") => {
@@ -260,6 +262,9 @@ export default function PosApp() {
     const total = discountedSubtotal + tax;
     const ticketId = `T-${Math.floor(100 + Math.random() * 899)}`;
 
+    const queue = ticketId.slice(-2);
+    const tableName = activeTableId ? tables.find(t => t.id === activeTableId)?.name : undefined;
+
     const receiptData = {
       orderId: ticketId,
       items: itemsToCheckOut.map(item => {
@@ -276,7 +281,9 @@ export default function PosApp() {
       paymentMethod: method,
       amountGiven,
       change,
-      customerName: checkoutCustomerName // Assign saved name
+      customerName: checkoutCustomerName, // Assign saved name
+      queue,
+      table: tableName
     };
     
     setPrintedReceiptDetails(receiptData);
@@ -295,7 +302,9 @@ export default function PosApp() {
         receiptData.change,
         receiptData.customerName,
         receiptData.discountName,
-        true // isPaid
+        true, // isPaid
+        receiptData.table,
+        receiptData.queue
       );
       printerManager.print(dataToPrint);
       // We don't show the modal if physical printer is used
@@ -910,7 +919,9 @@ export default function PosApp() {
       customerName: order.customerName,
       paymentMethod: order.payment,
       amountGiven: order.amountGiven,
-      change: order.change
+      change: order.change,
+      queue: order.queue,
+      table: order.table && order.table !== "-" ? tables.find(t => t.id === order.table)?.name || order.table : undefined
     });
     setShowReceiptModal(true);
   };
@@ -1004,17 +1015,22 @@ export default function PosApp() {
               <div className="h-[1px] w-full border-t border-dashed border-zinc-400"></div>
               <div>
                 <p>ID STRUK: #{printedReceiptDetails.orderId}</p>
-                {printedReceiptDetails.customerName && (() => {
-                  const saved = localStorage.getItem("pos_receipt_settings");
-                  let showName = true; // default
-                  if (saved) {
-                    try {
-                      const tpl = JSON.parse(saved);
-                      if (tpl.showCustomerName === false) showName = false;
-                    } catch (e) { }
-                  }
-                  return showName ? <p>NAMA: {printedReceiptDetails.customerName}</p> : null;
-                })()}
+                {printedReceiptDetails.queue && <p>ANTRIAN: {printedReceiptDetails.queue}</p>}
+                {printedReceiptDetails.table ? (
+                  <p>MEJA: {printedReceiptDetails.table}</p>
+                ) : (
+                  printedReceiptDetails.customerName && (() => {
+                    const saved = localStorage.getItem("pos_receipt_settings");
+                    let showName = true; // default
+                    if (saved) {
+                      try {
+                        const tpl = JSON.parse(saved);
+                        if (tpl.showCustomerName === false) showName = false;
+                      } catch (e) { }
+                    }
+                    return showName ? <p>NAMA: {printedReceiptDetails.customerName}</p> : null;
+                  })()
+                )}
               </div>
               <div className="h-[1px] w-full border-t border-dashed border-zinc-400"></div>
 
