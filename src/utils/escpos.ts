@@ -173,8 +173,6 @@ export function buildKdsTicketData(
   addCommand(ESC_POS.ALIGN_LEFT);
   addLine(`ID: #${orderId}`);
   if (customerName) addLine(`NAMA: ${customerName}`);
-  addLine(`STATUS: ${isPaid ? 'LUNAS' : 'BELUM LUNAS'}`);
-  addLine(`WAKTU: ${new Date().toLocaleTimeString('id-ID')}`);
   addLine('-'.repeat(charsPerLine));
 
   addCommand(ESC_POS.BOLD_ON);
@@ -190,8 +188,6 @@ export function buildKdsTicketData(
   addCommand(ESC_POS.BOLD_OFF);
 
   addLine('-'.repeat(charsPerLine));
-  addLine(' ');
-  addLine(' ');
   addLine(' ');
   addCommand(ESC_POS.PAPER_CUT);
 
