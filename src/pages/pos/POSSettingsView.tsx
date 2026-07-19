@@ -67,9 +67,9 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
       } catch (e) {}
     }
     return {
-      namaToko: "POS18 Coffee",
-      nomorTelepon: "0812-4428-1199",
-      alamatLengkap: "Jl. Sudirman No.18, Jakarta Selatan",
+      namaToko: "LB Coffee",
+      nomorTelepon: "083833376959",
+      alamatLengkap: "Aceh Tamiang",
     };
   });
 

@@ -259,15 +259,15 @@ export async function testPrint(role: string): Promise<void> {
   const testData: ReceiptData = {
     lines: [
       { text: '',              align: 'center' },
-      { text: 'POS18 COFFEE', align: 'center', bold: true, size: 'double' },
+      { text: 'LB COFFEE',     align: 'center', bold: true, size: 'double' },
       { text: '',              align: 'center' },
-      { text: '================================', align: 'left' },
+      { text: '==============================', align: 'left' },
       { text: `  TEST PRINT ${role.toUpperCase()} BERHASIL!`, align: 'center', bold: true },
-      { text: '================================', align: 'left' },
+      { text: '==============================', align: 'left' },
       { text: '',              align: 'left' },
       { text: 'Printer terhubung dengan baik.', align: 'center' },
-      { text: 'Jl. Sudirman No.18, Jakarta',    align: 'center' },
-      { text: 'Tel: 0812-4428-1199',            align: 'center' },
+      { text: 'Aceh Tamiang',                   align: 'center' },
+      { text: 'Tel: 0838-3337-6959',            align: 'center' },
       { text: '',              align: 'left' },
     ],
     feedLines: 3,
@@ -307,14 +307,14 @@ export function buildKasirReceipt(order: {
     const priceStr = `${item.qty}x @ ${item.price.toLocaleString('id-ID')}`;
     const totalStr = (item.qty * item.price).toLocaleString('id-ID');
     lines.push({ text: item.name, bold: true });
-    lines.push({ text: `  ${priceStr.padEnd(22)}${totalStr.padStart(10)}` });
+    lines.push({ text: `  ${priceStr.padEnd(18)}${totalStr.padStart(10)}` });
   }
 
   lines.push(
     { text: '', separator: true },
-    { text: `${'TOTAL'.padEnd(22)}${order.total.toLocaleString('id-ID').padStart(10)}`, bold: true },
-    { text: `${'Bayar'.padEnd(22)}${order.paid.toLocaleString('id-ID').padStart(10)}` },
-    { text: `${'Kembali'.padEnd(22)}${order.change.toLocaleString('id-ID').padStart(10)}`, bold: true },
+    { text: `${'TOTAL'.padEnd(20)}${order.total.toLocaleString('id-ID').padStart(10)}`, bold: true },
+    { text: `${'Bayar'.padEnd(20)}${order.paid.toLocaleString('id-ID').padStart(10)}` },
+    { text: `${'Kembali'.padEnd(20)}${order.change.toLocaleString('id-ID').padStart(10)}`, bold: true },
     { text: `Metode: ${order.paymentMethod}` },
     { text: '', separator: true },
     { text: '',              align: 'center' },

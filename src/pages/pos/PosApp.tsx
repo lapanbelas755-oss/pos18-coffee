@@ -209,7 +209,7 @@ export default function PosApp() {
           const msg = pending.length === 1
             ? `Pesanan Online baru dari Meja ${pending[0].table} (Rp${pending[0].total.toLocaleString('id-ID')})`
             : `Masuk ${pending.length} pesanan online baru!`;
-          
+
           triggerToast(msg, "success");
 
           // Play sound notification
@@ -322,7 +322,7 @@ export default function PosApp() {
     }
 
     const subtotal = itemsToCheckOut.reduce((sum, item) => sum + calculateItemUnitPrice(item) * item.quantity, 0);
-    
+
     let discount = 0;
     if (checkoutPromo) {
       if (checkoutPromo.type === "Persentase") {
@@ -330,9 +330,9 @@ export default function PosApp() {
       } else if (checkoutPromo.type === "Nominal") {
         discount = checkoutPromo.value;
       } else if (checkoutPromo.type === "Karyawan") {
-        const drink = itemsToCheckOut.find(item => 
-          item.product.category.toLowerCase().includes('kopi') || 
-          item.product.category.toLowerCase().includes('minuman') || 
+        const drink = itemsToCheckOut.find(item =>
+          item.product.category.toLowerCase().includes('kopi') ||
+          item.product.category.toLowerCase().includes('minuman') ||
           item.product.category.toLowerCase().includes('tea') ||
           item.product.category.toLowerCase().includes('signature') ||
           item.product.category.toLowerCase().includes('coffee')
@@ -344,7 +344,7 @@ export default function PosApp() {
         }
       }
     }
-    
+
     const discountedSubtotal = Math.max(0, subtotal - discount);
     const tax = Math.round(discountedSubtotal * taxRate);
     const total = discountedSubtotal + tax;
@@ -373,20 +373,20 @@ export default function PosApp() {
       queue,
       table: tableName
     };
-    
+
     setPrintedReceiptDetails(receiptData);
 
     // Bluetooth Printing Logic (KASIR)
     if (connectedPrinters.kasir) {
-      let storeName = "POS18 Coffee";
-      let storeAddress = "Jakarta";
+      let storeName = "Lapanbelas Coffee";
+      let storeAddress = "Aceh Tamiang";
       const savedProfile = localStorage.getItem("pos_store_profile");
       if (savedProfile) {
         try {
           const p = JSON.parse(savedProfile);
           if (p.namaToko) storeName = p.namaToko;
           if (p.alamatLengkap) storeAddress = p.alamatLengkap;
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const dataToPrint = buildKasirReceipt({
@@ -400,7 +400,7 @@ export default function PosApp() {
         change: receiptData.change || 0,
         paymentMethod: receiptData.paymentMethod || "UNKNOWN",
       });
-      printReceipt(dataToPrint, "Kasir").catch(() => {});
+      printReceipt(dataToPrint, "Kasir").catch(() => { });
       // We don't show the modal if physical printer is used
     } else {
       setShowReceiptModal(true);
@@ -463,7 +463,7 @@ export default function PosApp() {
               itemIndex: index + 1,
               totalItems: baristaItems.length,
             });
-            printReceipt(bData, "Barista").catch(() => {});
+            printReceipt(bData, "Barista").catch(() => { });
           });
         }
       }
@@ -507,7 +507,7 @@ export default function PosApp() {
             tableNo: tableName || undefined,
             items: kitchenItems.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
           });
-          printReceipt(dData, "Dapur").catch(() => {});
+          printReceipt(dData, "Dapur").catch(() => { });
         }
       }
 
@@ -608,7 +608,7 @@ export default function PosApp() {
         await supabase.from('stock_items')
           .update({ stock_level: newStockLevel, status: newStatus })
           .eq('sku', stockRow.sku);
-          
+
         if (newStockLevel <= alertThreshold && (stockRow.stock_level || 0) > alertThreshold) {
           const message = `⚠️ <b>PERINGATAN STOK MENIPIS</b> ⚠️\n\nBahan Baku: <b>${stockRow.name}</b>\nSisa Stok: <b>${newStockLevel} ${stockRow.unit || ''}</b>\nBatas Minimal: ${alertThreshold} ${stockRow.unit || ''}\nStatus: Perlu Segera Restok!`;
           sendTelegramNotification(message);
@@ -646,7 +646,7 @@ export default function PosApp() {
         const minStock = 20; // Default min stock for direct products (Porsi)
 
         await supabase.from('products').update({ stock: newStock }).eq('id', item.product.id);
-        
+
         if (newStock <= minStock && currentStock > minStock) {
           const message = `⚠️ <b>PERINGATAN STOK MENIPIS</b> ⚠️\n\nProduk/Porsi: <b>${item.product.name}</b>\nSisa Stok: <b>${newStock} Porsi</b>\nBatas Minimal: ${minStock}\nStatus: Perlu Segera Restok!`;
           sendTelegramNotification(message);
@@ -663,7 +663,7 @@ export default function PosApp() {
 
     for (const item of itemsToCheckOut) {
       const recipe = recipes.find(r => r.name.toLowerCase().trim() === item.product.name.toLowerCase().trim() || item.product.name.toLowerCase().includes(r.name.toLowerCase().split(" ")[0]));
-      
+
       if (recipe && recipe.ingredients) {
         recipe.ingredients.forEach(ing => {
           const costStr = String(ing.totalCost || 0);
@@ -674,7 +674,7 @@ export default function PosApp() {
           }
         });
       } else if (item.product.cogs) {
-          ingCostsMap[item.product.name] = (ingCostsMap[item.product.name] || 0) + (item.product.cogs * item.quantity);
+        ingCostsMap[item.product.name] = (ingCostsMap[item.product.name] || 0) + (item.product.cogs * item.quantity);
       }
 
       // --- Intercept Dynamic Cup Cost ---
@@ -690,7 +690,7 @@ export default function PosApp() {
           if (cupStock && cupStock.unitCost) { cupCost = cupStock.unitCost; cupName = cupStock.name; }
         }
         if (cupCost > 0 && cupName) {
-           ingCostsMap[cupName] = (ingCostsMap[cupName] || 0) + (cupCost * item.quantity);
+          ingCostsMap[cupName] = (ingCostsMap[cupName] || 0) + (cupCost * item.quantity);
         }
       }
     }
@@ -759,7 +759,7 @@ export default function PosApp() {
         const existingIdx = prev.findIndex(o => o.table === activeTableId && o.status === "Unpaid");
         if (existingIdx >= 0) {
           const updated = [...prev];
-          
+
           if (itemsToCheckOut.length === cart.length) {
             // Full payment
             updated[existingIdx] = { ...updated[existingIdx], status: "Selesai", payment: method, amountGiven, change };
@@ -768,7 +768,7 @@ export default function PosApp() {
             // Partial payment
             const paidItemIds = new Set(itemsToCheckOut.map(i => i.id));
             const remaining = cart.filter(i => !paidItemIds.has(i.id));
-            
+
             let taxR = 0.11;
             try {
               const savedBiaya = localStorage.getItem("pos_biaya_settings");
@@ -778,15 +778,15 @@ export default function PosApp() {
                 if (pb1 && !pb1.isActive) taxR = 0;
                 else if (pb1 && pb1.isActive) taxR = pb1.value / 100;
               }
-            } catch(e) {}
-            
+            } catch (e) { }
+
             const remainingSubtotal = remaining.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
             const remainingTotal = remainingSubtotal + Math.round(remainingSubtotal * taxR);
-            
+
             // Update Unpaid order
             updated[existingIdx] = { ...updated[existingIdx], items: remaining, total: remainingTotal };
             supabase.from('orders').update({ items: remaining, total: remainingTotal }).eq('id', updated[existingIdx].id).then();
-            
+
             // Insert new partial paid order
             const partialOrder: Order = {
               ...newOrder,
@@ -893,15 +893,15 @@ export default function PosApp() {
 
       if (existingOrder) {
         ticketId = existingOrder.id.replace("INV-", "");
-        
+
         // Find which items are new or have increased quantity
         newItemsToProcess = cart.map(newItem => {
-           const oldItem = existingOrder.items.find(i => i.id === newItem.id);
-           const diffQty = newItem.quantity - (oldItem ? oldItem.quantity : 0);
-           if (diffQty > 0) {
-              return { ...newItem, quantity: diffQty };
-           }
-           return null;
+          const oldItem = existingOrder.items.find(i => i.id === newItem.id);
+          const diffQty = newItem.quantity - (oldItem ? oldItem.quantity : 0);
+          if (diffQty > 0) {
+            return { ...newItem, quantity: diffQty };
+          }
+          return null;
         }).filter(Boolean) as CartItem[];
 
         // Update existing order locally & DB
@@ -912,22 +912,22 @@ export default function PosApp() {
         ticketId = generateNextTicketId();
         newItemsToProcess = cart; // all items are new
 
-        const newOrder: Order = { 
-          id: `INV-${ticketId}`, 
-          queue: ticketId.split('-')[1], 
-          staff: currentUser?.name.split(' ')[0] || "Kasir", 
-          table: activeTableId, 
-          pager: "-", 
+        const newOrder: Order = {
+          id: `INV-${ticketId}`,
+          queue: ticketId.split('-')[1],
+          staff: currentUser?.name.split(' ')[0] || "Kasir",
+          table: activeTableId,
+          pager: "-",
           customerName: customerName || undefined,
-          type: "Dine In", 
-          payment: "Unpaid", 
-          status: "Unpaid", 
-          total, 
-          time: new Date().toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }), 
+          type: "Dine In",
+          payment: "Unpaid",
+          status: "Unpaid",
+          total,
+          time: new Date().toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
           items: cart,
           created_at: new Date().toISOString()
         };
-        
+
         // Insert new order locally & DB
         setPosOrders(prev => [newOrder, ...prev]);
         supabase.from('orders').insert([toDbOrder(newOrder)]).then();
@@ -945,9 +945,9 @@ export default function PosApp() {
 
         const kdsOrdersToInsert: KdsOrder[] = [];
         const dbPayloadsToInsert: any[] = [];
-        
+
         // Use timestamp to prevent KDS ID clashes if adding to existing order
-        const suffixId = Date.now().toString().slice(-4); 
+        const suffixId = Date.now().toString().slice(-4);
 
         if (baristaCart.length > 0) {
           const baristaItems = baristaCart.map((item, idx) => ({
@@ -990,7 +990,7 @@ export default function PosApp() {
                 itemIndex: index + 1,
                 totalItems: baristaItems.length,
               });
-              printReceipt(bData, "Barista").catch(() => {});
+              printReceipt(bData, "Barista").catch(() => { });
             });
           }
         }
@@ -1033,7 +1033,7 @@ export default function PosApp() {
               tableNo: tableName || undefined,
               items: kitchenItems.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
             });
-            printReceipt(dData, "Dapur").catch(() => {});
+            printReceipt(dData, "Dapur").catch(() => { });
           }
         }
 
@@ -1204,7 +1204,7 @@ export default function PosApp() {
                   {(() => {
                     const saved = localStorage.getItem("pos_store_profile");
                     if (saved) {
-                      try { return JSON.parse(saved).namaToko || "POS18 COFFEE"; } catch(e) {}
+                      try { return JSON.parse(saved).namaToko || "POS18 COFFEE"; } catch (e) { }
                     }
                     return "POS18 COFFEE";
                   })()}
@@ -1213,9 +1213,9 @@ export default function PosApp() {
                   {(() => {
                     const saved = localStorage.getItem("pos_store_profile");
                     if (saved) {
-                      try { return JSON.parse(saved).alamatLengkap || "Jakarta"; } catch(e) {}
+                      try { return JSON.parse(saved).alamatLengkap || "Aceh Tamiang"; } catch (e) { }
                     }
-                    return "Jakarta";
+                    return "Aceh Tamiang";
                   })()}
                 </p>
               </div>

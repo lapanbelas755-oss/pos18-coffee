@@ -103,15 +103,15 @@ export default function POSOnlineView({ posOrders, setPosOrders, onNotify }: POS
     // 3. Print Kasir Receipt automatically if connected
     if (connectedPrinters.kasir) {
       try {
-        let storeName = "POS18 Coffee";
-        let storeAddress = "Jakarta";
+        let storeName = "Lapanbelas Coffee";
+        let storeAddress = "Aceh Tamiang";
         const savedProfile = localStorage.getItem("pos_store_profile");
         if (savedProfile) {
           try {
             const p = JSON.parse(savedProfile);
             if (p.namaToko) storeName = p.namaToko;
             if (p.alamatLengkap) storeAddress = p.alamatLengkap;
-          } catch (e) {}
+          } catch (e) { }
         }
 
         const dataToPrint = buildKasirReceipt({
@@ -119,10 +119,10 @@ export default function POSOnlineView({ posOrders, setPosOrders, onNotify }: POS
           storeAddress,
           cashierName: currentUser?.name.split(' ')[0] || "Kasir",
           tableNo: order.table ? `Meja ${order.table}` : "Online",
-          items: order.items.map(i => ({ 
-            name: i.product.name, 
-            qty: i.quantity, 
-            price: calculateItemUnitPrice(i) 
+          items: order.items.map(i => ({
+            name: i.product.name,
+            qty: i.quantity,
+            price: calculateItemUnitPrice(i)
           })),
           total: order.total,
           paid: order.total,
@@ -140,13 +140,13 @@ export default function POSOnlineView({ posOrders, setPosOrders, onNotify }: POS
 
   return (
     <div className="flex flex-col h-full w-full bg-slate-50">
-      
+
       {/* Header (Blue) */}
       <div className="bg-[#4d3227] text-white flex items-center justify-between px-6 py-4 shadow-md z-10">
         <div className="flex items-center gap-6">
           <span className="font-bold text-lg">Pemesanan Online</span>
         </div>
-        <button 
+        <button
           onClick={() => onNotify("Sinkronisasi pesanan online...", "info")}
           className="bg-white text-[#4d3227] p-2 rounded-lg shadow-sm hover:bg-slate-100 transition-colors flex items-center justify-center"
         >
@@ -155,18 +155,17 @@ export default function POSOnlineView({ posOrders, setPosOrders, onNotify }: POS
       </div>
 
       <div className="flex-1 flex flex-col p-6 overflow-hidden">
-        
+
         {/* Tabs */}
         <div className="flex border-b border-slate-200 mb-6">
           {["Idefood", "Online", "Pesanan Terjadwal"].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-6 py-3 font-bold text-sm transition-colors ${
-                activeTab === tab
+              className={`px-6 py-3 font-bold text-sm transition-colors ${activeTab === tab
                   ? "text-[#4d3227] border-b-2 border-[#4d3227]"
                   : "text-slate-500 hover:text-slate-700"
-              }`}
+                }`}
             >
               {tab}
             </button>
@@ -177,18 +176,18 @@ export default function POSOnlineView({ posOrders, setPosOrders, onNotify }: POS
         <div className="bg-white p-4 rounded-t-xl border border-slate-200 flex gap-4 items-center">
           <div className="relative flex-1 max-w-sm">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-            <input 
-              type="text" 
-              placeholder="Cari Pesanan" 
+            <input
+              type="text"
+              placeholder="Cari Pesanan"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#4d3227]"
             />
           </div>
-          
+
           <div className="ml-auto flex gap-4 items-center">
             <div className="relative">
-              <select 
+              <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-4 pr-10 py-2 text-slate-600 focus:outline-none focus:border-[#4d3227] min-w-[160px]"
@@ -199,7 +198,7 @@ export default function POSOnlineView({ posOrders, setPosOrders, onNotify }: POS
               </select>
               <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
             </div>
-            
+
             <div className="text-slate-600 text-sm bg-slate-50 border border-slate-200 py-2 px-4 rounded-lg flex items-center gap-4">
               Hari Ini
               <span className="material-symbols-outlined text-[18px]">filter_alt</span>
@@ -247,7 +246,7 @@ export default function POSOnlineView({ posOrders, setPosOrders, onNotify }: POS
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-500">{order.time}</td>
                     <td className="px-4 py-3 text-center">
-                      <button 
+                      <button
                         onClick={() => handleComplete(order.id)}
                         className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-md font-bold text-xs transition-colors shadow-sm"
                       >

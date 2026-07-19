@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <div id="snap-container" style="width: 400px; height: 500px; border: 1px solid black;"></div>
+  <script src="https://app.midtrans.com/snap/snap.js" data-client-key="Mid-client-aoSv50P8nbKjRhyj"></script>
+  <script>
+    fetch('http://localhost:3002/api/qris', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({order_id: 'TEST10', gross_amount: 15000})
+    }).then(r => r.json()).then(data => {
+      window.snap.embed(data.snap_token, {
+        embedId: 'snap-container'
+      });
+    });
+  </script>
+</body>
+</html>
