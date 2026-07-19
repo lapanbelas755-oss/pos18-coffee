@@ -33,26 +33,38 @@ export default function ScheduledTaskRunner() {
 
   const sendDailyReport = async () => {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = now.toDateString();
     
     // Yesterday
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const yesterdayStr = yesterday.toDateString();
 
-    // Fetch orders for today and yesterday
-    const { data: allOrders } = await supabase.from('orders').select('*');
-    if (!allOrders) return;
+    // Fetch transactions
+    const { data: allTxs } = await supabase.from('transactions').select('*');
+    if (!allTxs) return;
+
+    // Helper: parse berbagai format tanggal ke objek Date (sama dengan Dashboard)
+    const parseDate = (dateStr: string): Date | null => {
+      if (!dateStr) return null;
+      const iso = new Date(dateStr);
+      if (!isNaN(iso.getTime())) return iso;
+      const parts = dateStr.split(/[\/\-]/);
+      if (parts.length === 3) {
+        return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      }
+      return null;
+    };
 
     // Filter today
-    const todayOrders = allOrders.filter(o => o.created_at?.startsWith(todayStr) && o.status === "Selesai");
-    const todayIncome = todayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const todayCogs = todayOrders.reduce((sum, o) => sum + (o.total_cogs || 0), 0);
+    const todayTxs = allTxs.filter(t => parseDate(t.date)?.toDateString() === todayStr);
+    const todayIncome = todayTxs.filter(t => t.type === 'inflow').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const todayCogs = todayTxs.filter(t => t.type === 'outflow').reduce((sum, t) => sum + (t.amount || 0), 0);
     const todayProfit = todayIncome - todayCogs;
 
     // Filter yesterday
-    const yesterdayOrders = allOrders.filter(o => o.created_at?.startsWith(yesterdayStr) && o.status === "Selesai");
-    const yesterdayIncome = yesterdayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+    const yesterdayTxs = allTxs.filter(t => parseDate(t.date)?.toDateString() === yesterdayStr);
+    const yesterdayIncome = yesterdayTxs.filter(t => t.type === 'inflow').reduce((sum, t) => sum + (t.amount || 0), 0);
     
     // Calculate drop
     const isDrop = todayIncome < yesterdayIncome;
