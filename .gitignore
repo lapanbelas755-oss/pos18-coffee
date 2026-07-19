@@ -8,5 +8,4 @@ coverage/
 !.env.example
 
 # Secrets & Tests
-server.js
 test-snap*.js
