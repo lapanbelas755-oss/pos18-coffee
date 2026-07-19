@@ -209,7 +209,13 @@ export default function PosApp() {
           const msg = pending.length === 1
             ? `Pesanan Online baru dari Meja ${pending[0].table} (Rp${pending[0].total.toLocaleString('id-ID')})`
             : `Masuk ${pending.length} pesanan online baru!`;
+          
           triggerToast(msg, "success");
+
+          // Play sound notification
+          const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+          audio.volume = 0.5;
+          audio.play().catch(e => console.error("Audio play failed:", e));
         }
       }
     };
@@ -372,9 +378,20 @@ export default function PosApp() {
 
     // Bluetooth Printing Logic (KASIR)
     if (connectedPrinters.kasir) {
+      let storeName = "POS18 Coffee";
+      let storeAddress = "Jakarta";
+      const savedProfile = localStorage.getItem("pos_store_profile");
+      if (savedProfile) {
+        try {
+          const p = JSON.parse(savedProfile);
+          if (p.namaToko) storeName = p.namaToko;
+          if (p.alamatLengkap) storeAddress = p.alamatLengkap;
+        } catch (e) {}
+      }
+
       const dataToPrint = buildKasirReceipt({
-        storeName: "POS18 Coffee", // you could fetch from store profile
-        storeAddress: "Jakarta",
+        storeName,
+        storeAddress,
         cashierName: currentUser?.name.split(' ')[0] || "Kasir",
         tableNo: receiptData.table,
         items: receiptData.items.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
@@ -441,7 +458,7 @@ export default function PosApp() {
           baristaItems.forEach((item, index) => {
             const bData = buildBaristaTicket({
               orderId: ticketId,
-              tableNo: activeTableId || undefined,
+              tableNo: tableName || undefined,
               item: { name: item.name, notes: item.notes }, // minimal info for now
               itemIndex: index + 1,
               totalItems: baristaItems.length,
@@ -487,7 +504,7 @@ export default function PosApp() {
         if (connectedPrinters.dapur) {
           const dData = buildDapurTicket({
             orderId: ticketId,
-            tableNo: activeTableId || undefined,
+            tableNo: tableName || undefined,
             items: kitchenItems.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
           });
           printReceipt(dData, "Dapur").catch(() => {});
@@ -869,6 +886,7 @@ export default function PosApp() {
       // Find existing order BEFORE calling setPosOrders
       const existingIdx = posOrders.findIndex(o => o.table === activeTableId && o.status === "Unpaid");
       const existingOrder = existingIdx >= 0 ? posOrders[existingIdx] : null;
+      const tableName = activeTableId ? tables.find(t => t.id === activeTableId)?.name : undefined;
 
       let ticketId = "";
       let newItemsToProcess: CartItem[] = [];
@@ -967,7 +985,7 @@ export default function PosApp() {
             baristaItems.forEach((item, index) => {
               const bData = buildBaristaTicket({
                 orderId: ticketId + (existingOrder ? " (TAMBAHAN)" : ""),
-                tableNo: activeTableId || undefined,
+                tableNo: tableName || undefined,
                 item: { name: item.name, notes: item.notes },
                 itemIndex: index + 1,
                 totalItems: baristaItems.length,
@@ -1012,7 +1030,7 @@ export default function PosApp() {
           if (connectedPrinters.dapur) {
             const dData = buildDapurTicket({
               orderId: ticketId + (existingOrder ? " (TAMBAHAN)" : ""),
-              tableNo: activeTableId || undefined,
+              tableNo: tableName || undefined,
               items: kitchenItems.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
             });
             printReceipt(dData, "Dapur").catch(() => {});

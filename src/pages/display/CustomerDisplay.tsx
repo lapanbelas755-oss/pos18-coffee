@@ -248,33 +248,80 @@ export default function CustomerDisplay() {
   useEffect(() => {
     const CHANNEL_NAME = "pos18_customer_display";
     let bc: BroadcastChannel | null = null;
+    let remoteChannel: ReturnType<typeof supabase.channel> | null = null;
+    let wakeLock: WakeLockSentinel | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastRaw = "";
+
+    // ── 1. Screen Wake Lock: cegah tablet/HP sleep ──────────────────────────
+    const acquireWakeLock = async () => {
+      try {
+        if ("wakeLock" in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request("screen");
+        }
+      } catch { /* WakeLock tidak tersedia di semua browser */ }
+    };
+    acquireWakeLock();
+
+    // Re-acquire saat tab aktif kembali setelah kunci layar
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        acquireWakeLock();
+        // Baca ulang localStorage segera saat layar aktif kembali
+        read();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    // ── 2. BroadcastChannel (same-origin, zero-latency) ─────────────────────
     try {
       bc = new BroadcastChannel(CHANNEL_NAME);
       bc.onmessage = (e) => { if (e.data) setDisplayData(e.data as DisplayData); };
     } catch { /* fallback */ }
 
+    // ── 3. localStorage polling (fallback, 500ms) ────────────────────────────
     const read = () => {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) setDisplayData(JSON.parse(raw) as DisplayData);
+        // Hanya update state jika data benar-benar berubah (cegah re-render sia-sia)
+        if (raw && raw !== lastRaw) {
+          lastRaw = raw;
+          setDisplayData(JSON.parse(raw) as DisplayData);
+        }
       } catch { /* ignore */ }
     };
     read();
     const interval = setInterval(read, 500);
 
-    // Supabase Realtime — lintas perangkat (Skenario B)
-    const remoteChannel = supabase.channel("public:customer-display")
-      .on("broadcast", { event: "display-update" }, ({ payload }) => {
-        if (payload) setDisplayData(payload as DisplayData);
-      })
-      .subscribe();
+    // ── 4. Supabase Realtime (cross-device, auto-reconnect) ──────────────────
+    const connectSupabase = () => {
+      if (remoteChannel) {
+        supabase.removeChannel(remoteChannel);
+      }
+      remoteChannel = supabase.channel("public:customer-display")
+        .on("broadcast", { event: "display-update" }, ({ payload }) => {
+          if (payload) setDisplayData(payload as DisplayData);
+        })
+        .subscribe((status) => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            // Auto-reconnect setelah 5 detik saat koneksi bermasalah
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(connectSupabase, 5000);
+          }
+        });
+    };
+    connectSupabase();
 
     return () => {
       bc?.close();
-      supabase.removeChannel(remoteChannel);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      wakeLock?.release().catch(() => {});
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (remoteChannel) supabase.removeChannel(remoteChannel);
       clearInterval(interval);
     };
   }, []);
+
 
   const renderScreen = () => {
     switch (displayData.state) {

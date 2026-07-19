@@ -1,5 +1,10 @@
 import React, { useState } from "react";
 import { Order } from "../../types";
+import { supabase } from "../../lib/supabase";
+import { usePosStore } from "../../store/posStore";
+import { useAuthStore } from "../../store/authStore";
+import { printReceipt, buildKasirReceipt } from "../../utils/bluetoothPrinter";
+import { calculateItemUnitPrice } from "../../utils/pricing";
 
 interface POSOnlineViewProps {
   posOrders: Order[];
@@ -8,6 +13,9 @@ interface POSOnlineViewProps {
 }
 
 export default function POSOnlineView({ posOrders, setPosOrders, onNotify }: POSOnlineViewProps) {
+  const { connectedPrinters } = usePosStore();
+  const { currentUser } = useAuthStore();
+
   const [activeTab, setActiveTab] = useState("Online");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Semua Status");
@@ -21,9 +29,113 @@ export default function POSOnlineView({ posOrders, setPosOrders, onNotify }: POS
     return matchSearch && matchStatus;
   });
 
-  const handleComplete = (orderId: string) => {
+  const handleComplete = async (orderId: string) => {
+    const order = posOrders.find(o => o.id === orderId);
+    if (!order) return;
+
+    // Optimistic UI Update
     setPosOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: "Selesai", payment: "QRIS (Paid)" } : o));
-    onNotify(`Pesanan online ${orderId} telah diselesaikan.`, "success");
+    onNotify(`Pesanan ${orderId} sedang disinkronisasi ke Dapur/Barista...`, "info");
+
+    // 1. Update Order Status in Supabase
+    await supabase.from('orders').update({ status: 'Selesai' }).eq('id', orderId);
+
+    // 2. Split items for KDS
+    const isKitchenItem = (category: string) => {
+      const c = (category || "").toLowerCase();
+      return c.includes('food') || c.includes('makanan') || c.includes('snack') || c.includes('pastry');
+    };
+
+    const baristaCart = order.items.filter(i => !isKitchenItem(i.product.category));
+    const kitchenCart = order.items.filter(i => isKitchenItem(i.product.category));
+
+    const dbPayloadsToInsert: any[] = [];
+    const ticketId = order.id;
+
+    if (baristaCart.length > 0) {
+      const baristaItems = baristaCart.map((item, idx) => ({
+        id: `pos-${ticketId}-B-${idx}`,
+        name: `${item.quantity}x ${item.product.name}`,
+        notes: (["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase()))
+          ? `${item.selectedSize} · Ice: ${item.selectedIce} · Sugar: ${item.selectedSugar} ${item.notes ? `(${item.notes})` : ""}`
+          : `${item.selectedSize} ${item.notes ? `(${item.notes})` : ""}`,
+        checked: false
+      }));
+
+      dbPayloadsToInsert.push({
+        id: `${ticketId}-B`,
+        type: order.type,
+        table: order.table || undefined,
+        time_in_seconds: 0,
+        status: 'incoming',
+        station: 'barista',
+        items: baristaItems,
+        customer_name: order.customerName,
+        created_at: new Date().toISOString()
+      });
+    }
+
+    if (kitchenCart.length > 0) {
+      const kitchenItems = kitchenCart.map((item, idx) => ({
+        id: `pos-${ticketId}-K-${idx}`,
+        name: `${item.quantity}x ${item.product.name}`,
+        notes: `${item.notes ? `(${item.notes})` : ""}`,
+        checked: false
+      }));
+
+      dbPayloadsToInsert.push({
+        id: `${ticketId}-K`,
+        type: order.type,
+        table: order.table || undefined,
+        time_in_seconds: 0,
+        status: 'incoming',
+        station: 'kitchen',
+        items: kitchenItems,
+        customer_name: order.customerName,
+        created_at: new Date().toISOString()
+      });
+    }
+
+    if (dbPayloadsToInsert.length > 0) {
+      await supabase.from('kds_orders').insert(dbPayloadsToInsert);
+    }
+
+    // 3. Print Kasir Receipt automatically if connected
+    if (connectedPrinters.kasir) {
+      try {
+        let storeName = "POS18 Coffee";
+        let storeAddress = "Jakarta";
+        const savedProfile = localStorage.getItem("pos_store_profile");
+        if (savedProfile) {
+          try {
+            const p = JSON.parse(savedProfile);
+            if (p.namaToko) storeName = p.namaToko;
+            if (p.alamatLengkap) storeAddress = p.alamatLengkap;
+          } catch (e) {}
+        }
+
+        const dataToPrint = buildKasirReceipt({
+          storeName,
+          storeAddress,
+          cashierName: currentUser?.name.split(' ')[0] || "Kasir",
+          tableNo: order.table ? `Meja ${order.table}` : "Online",
+          items: order.items.map(i => ({ 
+            name: i.product.name, 
+            qty: i.quantity, 
+            price: calculateItemUnitPrice(i) 
+          })),
+          total: order.total,
+          paid: order.total,
+          change: 0,
+          paymentMethod: order.payment || "QRIS (Paid)",
+        });
+        await printReceipt(dataToPrint, "Kasir");
+      } catch (printErr) {
+        console.error("Gagal print struk online:", printErr);
+      }
+    }
+
+    onNotify(`Pesanan online ${orderId} telah masuk ke KDS!`, "success");
   };
 
   return (

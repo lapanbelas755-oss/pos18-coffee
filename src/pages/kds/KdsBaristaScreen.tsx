@@ -50,6 +50,13 @@ export default function KdsBaristaScreen() {
   const activeOrders = allBaristaOrders.filter(o => o.status !== 'done');
   const historyOrders = allBaristaOrders.filter(o => o.status === 'done');
 
+  console.log('DEBUG KDS Barista:', {
+    totalKdsOrders: kdsOrders.length,
+    allBaristaOrdersCount: allBaristaOrders.length,
+    activeOrdersCount: activeOrders.length,
+    activeOrders
+  });
+
   const [activeTab, setActiveTab] = useState<'aktif' | 'riwayat'>('aktif');
   const orders = activeTab === 'aktif' ? activeOrders : historyOrders;
 
@@ -124,10 +131,15 @@ export default function KdsBaristaScreen() {
       if (isPrinterConnected) {
         const newestOrder = activeOrders[activeOrders.length - 1];
         if (newestOrder) {
+          const rawTable = newestOrder.table;
+          const tableName = rawTable && rawTable.startsWith('table-') 
+            ? (tables.find(t => t.id === rawTable)?.name || rawTable) 
+            : rawTable;
+
           newestOrder.items.forEach((it, index) => {
             const ticketBytes = buildBaristaTicket({
               orderId: newestOrder.id.replace('INV-', ''),
-              tableNo: newestOrder.table || undefined,
+              tableNo: tableName || undefined,
               item: { name: it.name, notes: it.notes },
               itemIndex: index + 1,
               totalItems: newestOrder.items.length

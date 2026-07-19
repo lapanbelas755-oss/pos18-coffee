@@ -107,9 +107,14 @@ export default function KdsKitchenScreen() {
             qty: 1,
             notes: it.notes
           }));
+          const rawTable = newestOrder.table;
+          const tableName = rawTable && rawTable.startsWith('table-') 
+            ? (tables.find(t => t.id === rawTable)?.name || rawTable) 
+            : rawTable;
+
           const ticketBytes = buildDapurTicket({
             orderId: newestOrder.id.replace('INV-', ''),
-            tableNo: newestOrder.table || undefined,
+            tableNo: tableName || undefined,
             items: itemsForPrint
           });
           printReceipt(ticketBytes, "Dapur").catch(() => {});
