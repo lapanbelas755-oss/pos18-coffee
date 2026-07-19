@@ -270,7 +270,7 @@ export default function ScanOpname() {
 
   return (
     <div className="h-screen max-h-screen overflow-hidden bg-[#faf6f3] flex flex-col">
-      <div className="bg-white px-4 py-4 sticky top-0 z-10 border-b border-slate-200 shadow-sm flex items-center justify-between">
+      <div className="bg-white px-4 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)] sticky top-0 z-10 border-b border-slate-200 shadow-sm flex items-center justify-between">
         <div>
           <h1 className="font-black text-lg text-[#4a2d21]">Opname {isKitchen ? "Dapur" : "Bar"}</h1>
           <p className="text-xs text-slate-500 font-bold">Hi, {currentUser.name}</p>
@@ -371,7 +371,7 @@ export default function ScanOpname() {
       </div>
 
       {/* Floating Action Button */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-200">
+      <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] bg-white/80 backdrop-blur-md border-t border-slate-200 z-10">
         <button
           onClick={handleSave}
           disabled={isSaving || loading}
