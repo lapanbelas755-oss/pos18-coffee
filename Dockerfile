@@ -14,8 +14,8 @@ RUN npm install --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY server.js ./
 
-# Expose port 3002 untuk Dokploy
-ENV PORT=3002
-EXPOSE 3002
+# Gunakan port 80 secara default agar Dokploy tidak perlu diubah konfigurasinya
+ENV PORT=80
+EXPOSE 80
 
 CMD ["node", "server.js"]
