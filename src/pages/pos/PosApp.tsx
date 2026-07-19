@@ -1085,6 +1085,7 @@ export default function PosApp() {
           total={cart.reduce((sum, item) => sum + calculateItemUnitPrice(item) * item.quantity, 0)}
           cart={cart}
           promos={promos}
+          customerName={checkoutCustomerName}
           onClose={() => setShowPaymentModal(false)}
           onSuccess={(method, amountGiven, change, appliedPromo) => {
             setShowPaymentModal(false);

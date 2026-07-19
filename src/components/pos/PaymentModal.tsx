@@ -2,17 +2,19 @@ import React, { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { CartItem, Promo } from "../../types";
 import { calculateItemUnitPrice } from "../../utils/pricing";
+import { broadcastToDisplay, clearDisplay } from "../../utils/customerDisplayBroadcast";
 
 interface PaymentModalProps {
   total: number; // This is now subtotal + tax (no promo applied yet)
   cart?: CartItem[];
   promos?: Promo[];
+  customerName?: string;
   onClose: () => void;
   onSuccess: (method: string, amountGiven: number, change: number, appliedPromo?: Promo | null) => void;
   onPartialSuccess?: (method: string, paidItems: CartItem[]) => void;
 }
 
-export default function PaymentModal({ total, cart = [], promos = [], onClose, onSuccess, onPartialSuccess }: PaymentModalProps) {
+export default function PaymentModal({ total, cart = [], promos = [], customerName, onClose, onSuccess, onPartialSuccess }: PaymentModalProps) {
   const [activeTab, setActiveTab] = useState<"Penuh" | "Split" | "Item">("Penuh");
   
   // Promo State
@@ -50,7 +52,27 @@ export default function PaymentModal({ total, cart = [], promos = [], onClose, o
   const [qrisError, setQrisError] = useState<string | null>(null);
   const [qrisTimer, setQrisTimer] = useState<number>(900);
 
-  // Timer countdown for QRIS expiration
+  // ── Broadcast "order" state when modal first opens ──
+  useEffect(() => {
+    const items = cart.map(item => ({
+      name: item.product.name,
+      qty: item.quantity,
+      price: calculateItemUnitPrice(item),
+      notes: item.notes || undefined,
+    }));
+    const subtotal = cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0);
+    broadcastToDisplay({
+      state: "order",
+      items,
+      subtotal,
+      tax: total - subtotal,
+      total,
+      customerName,
+    });
+    return () => clearDisplay();
+  }, []);
+
+  // ── Timer countdown for QRIS expiration ──
   useEffect(() => {
     let timerInterval: any;
     if (method === "QRIS" && qrisUrl && qrisTimer > 0) {
@@ -108,6 +130,19 @@ export default function PaymentModal({ total, cart = [], promos = [], onClose, o
     setIsGeneratingQris(true);
     setQrisError(null);
     setQrisTimer(900);
+
+    // Broadcast payment state with loading QRIS
+    const items = cart.map(item => ({
+      name: item.product.name, qty: item.quantity,
+      price: calculateItemUnitPrice(item), notes: item.notes || undefined,
+    }));
+    const subtotal = cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0);
+    broadcastToDisplay({
+      state: "payment", paymentMethod: "QRIS", qrisUrl: null, qrisTimer: 900,
+      items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
+      tax: total - subtotal, total: finalTotal,
+    });
+
     try {
       const apiUrl = getApiUrl();
       const response = await fetch(`${apiUrl}/api/qris`, {
@@ -123,6 +158,13 @@ export default function PaymentModal({ total, cart = [], promos = [], onClose, o
       if (data.success && data.qr_url) {
         setQrisUrl(data.qr_url);
         setQrisOrderId(data.order_id);
+        // Broadcast with real QRIS URL
+        broadcastToDisplay({
+          state: "payment", paymentMethod: "QRIS",
+          qrisUrl: data.qr_url, qrisTimer: 900,
+          items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
+          tax: total - subtotal, total: finalTotal,
+        });
       } else {
         setQrisError(data.error || "Gagal mendapatkan QRIS");
       }
@@ -169,16 +211,30 @@ export default function PaymentModal({ total, cart = [], promos = [], onClose, o
     e.preventDefault();
     if (activeTab === "Penuh") {
       if (isPenuhValid) {
+        // Broadcast success before calling onSuccess
+        const items = cart.map(item => ({
+          name: item.product.name, qty: item.quantity,
+          price: calculateItemUnitPrice(item), notes: item.notes || undefined,
+        }));
+        const subtotal = cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0);
+        broadcastToDisplay({
+          state: "success", paymentMethod: method,
+          items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
+          tax: total - subtotal, total: finalTotal,
+          change: method === "Cash" ? change : 0,
+        });
         onSuccess(method, method === "Cash" ? givenNum : finalTotal, change, appliedPromo);
       }
     } else if (activeTab === "Split") {
       if (totalPaid >= finalTotal) {
         const methods = [...new Set(payments.map(p => p.method))];
         const primaryMethod = methods.length === 1 ? methods[0] : `Multi (${methods.join("+")})`;
+        clearDisplay();
         onSuccess(primaryMethod, finalTotal, 0, appliedPromo);
       }
     } else if (activeTab === "Item") {
       if (selectedItemIds.length > 0 && onPartialSuccess) {
+        clearDisplay();
         onPartialSuccess(method, selectedItems);
       }
     }
@@ -283,7 +339,19 @@ export default function PaymentModal({ total, cart = [], promos = [], onClose, o
                     <div className="grid grid-cols-2 gap-3">
                       <button 
                         type="button"
-                        onClick={() => setMethod("Cash")}
+                        onClick={() => {
+                          setMethod("Cash");
+                          const items = cart.map(item => ({
+                            name: item.product.name, qty: item.quantity,
+                            price: calculateItemUnitPrice(item), notes: item.notes || undefined,
+                          }));
+                          const subtotal = cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0);
+                          broadcastToDisplay({
+                            state: "payment", paymentMethod: "Cash",
+                            items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
+                            tax: total - subtotal, total: finalTotal,
+                          });
+                        }}
                         className={`py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 transition-all cursor-pointer ${
                           method === "Cash" ? "border-[#4d3227] bg-blue-50/50 text-[#4d3227]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
                         }`}

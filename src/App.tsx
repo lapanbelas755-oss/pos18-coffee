@@ -13,6 +13,7 @@ const TvQueueApp = lazy(() => import('./pages/tv/TvQueueApp'));
 const KdsApp = lazy(() => import('./pages/kds/KdsApp'));
 const ScannerApp = lazy(() => import('./pages/scanner/ScannerApp'));
 const ScanOpname = lazy(() => import('./pages/ScanOpname'));
+const CustomerDisplay = lazy(() => import('./pages/display/CustomerDisplay'));
 
 const LoadingScreen = () => (
   <div className="flex h-screen w-full items-center justify-center bg-slate-50 flex-col gap-4">
@@ -105,6 +106,13 @@ function App() {
         <Route path="/scanner/*" element={
           <ErrorBoundary fallback={<div className="p-8 text-center bg-slate-900 text-white min-h-screen">Gangguan sistem Scanner. Harap refresh halaman.</div>}>
             <ScannerApp />
+          </ErrorBoundary>
+        } />
+
+        {/* CLUSTER CUSTOMER DISPLAY (Layar Pelanggan) */}
+        <Route path="/display" element={
+          <ErrorBoundary fallback={<div className="p-8 text-center bg-black text-white min-h-screen">Gangguan layar pelanggan.</div>}>
+            <CustomerDisplay />
           </ErrorBoundary>
         } />
 

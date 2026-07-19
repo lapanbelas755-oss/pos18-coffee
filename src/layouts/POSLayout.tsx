@@ -111,6 +111,27 @@ export default function POSLayout({ posOrders = [] }: { posOrders?: Order[] }) {
 
             <div className="h-px w-full bg-[#5c3e31] my-2 shrink-0"></div>
 
+            {/* Customer Display Button */}
+            <button
+              onClick={() => window.open(`${window.location.origin}/display`, "_blank", "noopener")}
+              title="Buka Layar Pelanggan"
+              className={`relative flex items-center rounded-xl transition-all h-12 shrink-0 text-amber-300 hover:bg-amber-400/10 hover:text-amber-200 ${
+                sidebarOpen ? "px-4 justify-start" : "justify-center"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[24px]">tv</span>
+              {sidebarOpen && (
+                <span className="ml-4 font-semibold text-sm whitespace-nowrap flex-1 text-left">
+                  Layar Pelanggan
+                </span>
+              )}
+              {sidebarOpen && (
+                <span className="text-[10px] bg-amber-400/20 border border-amber-400/40 text-amber-300 px-1.5 py-0.5 rounded-full font-bold">
+                  LIVE
+                </span>
+              )}
+            </button>
+
             {bottomTabs.map((tab) => (
               <button
                 key={tab.id}
