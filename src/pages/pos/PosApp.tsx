@@ -1200,8 +1200,24 @@ export default function PosApp() {
             </div>
             <div className="bg-amber-50/40 p-4 rounded-xl border border-dashed border-amber-900/20 font-mono text-[11px] leading-relaxed text-zinc-800 space-y-3">
               <div className="text-center">
-                <p className="font-bold uppercase tracking-wider text-[#4d3227]">LAPANBELAS COFFEE</p>
-                <p>POS18 Outlet</p>
+                <p className="font-bold uppercase tracking-wider text-[#4d3227]">
+                  {(() => {
+                    const saved = localStorage.getItem("pos_store_profile");
+                    if (saved) {
+                      try { return JSON.parse(saved).namaToko || "POS18 COFFEE"; } catch(e) {}
+                    }
+                    return "POS18 COFFEE";
+                  })()}
+                </p>
+                <p>
+                  {(() => {
+                    const saved = localStorage.getItem("pos_store_profile");
+                    if (saved) {
+                      try { return JSON.parse(saved).alamatLengkap || "Jakarta"; } catch(e) {}
+                    }
+                    return "Jakarta";
+                  })()}
+                </p>
               </div>
               <div className="h-[1px] w-full border-t border-dashed border-zinc-400"></div>
               <div>
