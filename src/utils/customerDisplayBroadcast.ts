@@ -10,9 +10,6 @@ import { supabase } from "../lib/supabase";
 const STORAGE_KEY = "pos_customer_display";
 const CHANNEL_NAME = "pos18_customer_display";
 
-// Buat channel Supabase untuk broadcast lintas-perangkat (Skenario B)
-const supabaseDisplayChannel = supabase.channel('public:customer-display');
-supabaseDisplayChannel.subscribe();
 
 export interface DisplayItem {
   name: string;
@@ -53,11 +50,15 @@ export function broadcastToDisplay(payload: CustomerDisplayPayload) {
   }
 
   try {
-    // 3. Supabase Realtime — untuk lintas perangkat (Skenario B: Tablet & PC)
-    supabaseDisplayChannel.send({
-      type: 'broadcast',
-      event: 'display-update',
-      payload: payload
+    // 3. Supabase Realtime — untuk lintas perangkat (Skenario B)
+    // Buat channel baru setiap kali agar tidak zombie saat reconnect
+    const ch = supabase.channel(`display-${Date.now()}`);
+    ch.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        ch.send({ type: "broadcast", event: "display-update", payload });
+        // Tutup setelah 3 detik agar tidak menumpuk
+        setTimeout(() => supabase.removeChannel(ch), 3000);
+      }
     });
   } catch (e) {
     console.warn("Customer Display remote broadcast failed:", e);

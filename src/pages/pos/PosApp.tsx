@@ -101,75 +101,104 @@ export default function PosApp() {
     };
     fetchInitialData();
 
-    // 2. Realtime Subscriptions
-    const tablesSub = supabase.channel('tables-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, payload => {
-        const mapTable = (raw: any): TableData => ({
-          ...raw,
-          customerName: raw.customer_name || raw.customerName,
-          linkedTo: raw.linked_to || raw.linkedTo
-        } as TableData);
+    // 2. Realtime Subscriptions dengan Auto-Reconnect
+    let reconnectTimers: ReturnType<typeof setTimeout>[] = [];
+    const safeReconnect = (fn: () => void, delay = 5000) => {
+      const t = setTimeout(fn, delay);
+      reconnectTimers.push(t);
+    };
 
-        if (payload.eventType === 'UPDATE') {
-          setTables(prev => prev.map(t => t.id === payload.new.id ? mapTable(payload.new) : t));
-        } else if (payload.eventType === 'INSERT') {
-          setTables(prev => {
-            if (prev.find(t => t.id === payload.new.id)) return prev.map(t => t.id === payload.new.id ? mapTable(payload.new) : t);
-            return [...prev, mapTable(payload.new)].sort((a, b) => a.id.localeCompare(b.id));
-          });
-        }
-      }).subscribe();
+    let tablesSub: ReturnType<typeof supabase.channel>;
+    const connectTables = () => {
+      tablesSub = supabase.channel('tables-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, payload => {
+          const mapTable = (raw: any): TableData => ({
+            ...raw,
+            customerName: raw.customer_name || raw.customerName,
+            linkedTo: raw.linked_to || raw.linkedTo
+          } as TableData);
+          if (payload.eventType === 'UPDATE') {
+            setTables(prev => prev.map(t => t.id === payload.new.id ? mapTable(payload.new) : t));
+          } else if (payload.eventType === 'INSERT') {
+            setTables(prev => {
+              if (prev.find(t => t.id === payload.new.id)) return prev.map(t => t.id === payload.new.id ? mapTable(payload.new) : t);
+              return [...prev, mapTable(payload.new)].sort((a, b) => a.id.localeCompare(b.id));
+            });
+          }
+        }).subscribe((status) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') safeReconnect(connectTables);
+        });
+    };
+    connectTables();
 
-    const ordersSub = supabase.channel('orders-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
-        if (payload.eventType === 'INSERT') {
-          setPosOrders(prev => {
-            if (prev.find(o => o.id === payload.new.id)) return prev;
-            return [{ ...payload.new, customerName: payload.new.customer_name || payload.new.customerName } as Order, ...prev];
-          });
-        } else if (payload.eventType === 'UPDATE') {
-          setPosOrders(prev => prev.map(o => o.id === payload.new.id ? { ...payload.new, customerName: payload.new.customer_name || payload.new.customerName } as Order : o));
-        }
-      }).subscribe();
+    let ordersSub: ReturnType<typeof supabase.channel>;
+    const connectOrders = () => {
+      ordersSub = supabase.channel('orders-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
+          if (payload.eventType === 'INSERT') {
+            setPosOrders(prev => {
+              if (prev.find(o => o.id === payload.new.id)) return prev;
+              return [{ ...payload.new, customerName: payload.new.customer_name || payload.new.customerName } as Order, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            setPosOrders(prev => prev.map(o => o.id === payload.new.id ? { ...payload.new, customerName: payload.new.customer_name || payload.new.customerName } as Order : o));
+          }
+        }).subscribe((status) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') safeReconnect(connectOrders);
+        });
+    };
+    connectOrders();
 
-    const kdsSub = supabase.channel('kds-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'kds_orders' }, payload => {
-        if (payload.eventType === 'INSERT') {
-          setKdsOrders(prev => {
-            if (prev.find(k => k.id === payload.new.id)) return prev;
-            let timeInSeconds = payload.new.time_in_seconds || 0;
-            if (payload.new.status !== 'done' && payload.new.created_at) {
-              timeInSeconds = Math.max(0, Math.floor((Date.now() - new Date(payload.new.created_at).getTime()) / 1000));
-            }
-            return [{ ...payload.new, timeInSeconds, customerName: payload.new.customer_name } as KdsOrder, ...prev];
-          });
-        } else if (payload.eventType === 'UPDATE') {
-          setKdsOrders(prev => prev.map(k => {
-            if (k.id === payload.new.id) {
+    let kdsSub: ReturnType<typeof supabase.channel>;
+    const connectKds = () => {
+      kdsSub = supabase.channel('kds-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'kds_orders' }, payload => {
+          if (payload.eventType === 'INSERT') {
+            setKdsOrders(prev => {
+              if (prev.find(k => k.id === payload.new.id)) return prev;
               let timeInSeconds = payload.new.time_in_seconds || 0;
               if (payload.new.status !== 'done' && payload.new.created_at) {
                 timeInSeconds = Math.max(0, Math.floor((Date.now() - new Date(payload.new.created_at).getTime()) / 1000));
               }
-              return { ...payload.new, timeInSeconds, customerName: payload.new.customer_name } as KdsOrder;
-            }
-            return k;
-          }));
-        }
-      }).subscribe();
+              return [{ ...payload.new, timeInSeconds, customerName: payload.new.customer_name } as KdsOrder, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            setKdsOrders(prev => prev.map(k => {
+              if (k.id === payload.new.id) {
+                let timeInSeconds = payload.new.time_in_seconds || 0;
+                if (payload.new.status !== 'done' && payload.new.created_at) {
+                  timeInSeconds = Math.max(0, Math.floor((Date.now() - new Date(payload.new.created_at).getTime()) / 1000));
+                }
+                return { ...payload.new, timeInSeconds, customerName: payload.new.customer_name } as KdsOrder;
+              }
+              return k;
+            }));
+          }
+        }).subscribe((status) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') safeReconnect(connectKds);
+        });
+    };
+    connectKds();
 
-    const productsSub = supabase.channel('products-pos-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, payload => {
-        if (payload.eventType === 'INSERT') {
-          setProducts(prev => {
-            if (prev.find(p => p.id === payload.new.id)) return prev;
-            return [...prev, { ...payload.new, priceModifiers: payload.new.price_modifiers } as Product];
-          });
-        } else if (payload.eventType === 'UPDATE') {
-          setProducts(prev => prev.map(p => p.id === payload.new.id ? { ...payload.new, priceModifiers: payload.new.price_modifiers } as Product : p));
-        } else if (payload.eventType === 'DELETE') {
-          setProducts(prev => prev.filter(p => p.id !== payload.old.id));
-        }
-      }).subscribe();
+    let productsSub: ReturnType<typeof supabase.channel>;
+    const connectProducts = () => {
+      productsSub = supabase.channel('products-pos-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, payload => {
+          if (payload.eventType === 'INSERT') {
+            setProducts(prev => {
+              if (prev.find(p => p.id === payload.new.id)) return prev;
+              return [...prev, { ...payload.new, priceModifiers: payload.new.price_modifiers } as Product];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            setProducts(prev => prev.map(p => p.id === payload.new.id ? { ...payload.new, priceModifiers: payload.new.price_modifiers } as Product : p));
+          } else if (payload.eventType === 'DELETE') {
+            setProducts(prev => prev.filter(p => p.id !== payload.old.id));
+          }
+        }).subscribe((status) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') safeReconnect(connectProducts);
+        });
+    };
+    connectProducts();
 
     const handleStorageChange = (e: StorageEvent | CustomEvent | any) => {
       if (e.key === "pending_online_orders" || e.type === "storage") {
@@ -190,12 +219,14 @@ export default function PosApp() {
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
+      reconnectTimers.forEach(clearTimeout);
       supabase.removeChannel(tablesSub);
       supabase.removeChannel(ordersSub);
       supabase.removeChannel(kdsSub);
       supabase.removeChannel(productsSub);
     };
   }, []);
+
 
   // Broadcast posOrders to TV Queue Display
   useEffect(() => {
