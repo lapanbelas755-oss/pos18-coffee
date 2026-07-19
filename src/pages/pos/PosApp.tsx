@@ -18,8 +18,7 @@ import PaymentModal from "../../components/pos/PaymentModal";
 import { supabase } from "../../lib/supabase";
 import { calculateItemUnitPrice } from "../../utils/pricing";
 import { calculateMaxServings } from "../../utils/inventory";
-import { printerManager } from "../../lib/bluetoothPrinter";
-import { buildReceiptData, buildKdsTicketData } from "../../utils/escpos";
+import { printReceipt, buildKasirReceipt, buildDapurTicket, buildBaristaTicket } from "../../utils/bluetoothPrinter";
 import { usePosStore } from "../../store/posStore";
 import { useAuthStore } from "../../store/authStore";
 import { sendTelegramNotification } from "../../utils/telegram";
@@ -31,7 +30,7 @@ interface ToastNotification {
 }
 
 export default function PosApp() {
-  const { setPromos, isPrinterConnected } = usePosStore();
+  const { promos, setPromos, connectedPrinters } = usePosStore();
   const { currentUser } = useAuthStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -55,13 +54,29 @@ export default function PosApp() {
     // 1. Fetch Initial Data
     const fetchInitialData = async () => {
       const { data: tablesData } = await supabase.from('tables').select('*').order('id');
-      if (tablesData && tablesData.length > 0) setTables(tablesData);
+      if (tablesData && tablesData.length > 0) {
+        setTables(tablesData.map(t => ({
+          ...t,
+          customerName: t.customer_name || t.customerName,
+          linkedTo: t.linked_to || t.linkedTo
+        })));
+      }
 
       const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-      if (ordersData && ordersData.length > 0) setPosOrders(ordersData);
+      if (ordersData && ordersData.length > 0) {
+        setPosOrders(ordersData.map(o => ({ ...o, customerName: o.customer_name || o.customerName } as Order)));
+      }
 
       const { data: kdsData } = await supabase.from('kds_orders').select('*').order('created_at', { ascending: false });
-      if (kdsData && kdsData.length > 0) setKdsOrders(kdsData);
+      if (kdsData && kdsData.length > 0) {
+        setKdsOrders(kdsData.map(o => {
+          let timeInSeconds = o.time_in_seconds || 0;
+          if (o.status !== 'done' && o.created_at) {
+            timeInSeconds = Math.max(0, Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000));
+          }
+          return { ...o, timeInSeconds, customerName: o.customer_name } as KdsOrder;
+        }));
+      }
 
       const { data: productsData } = await supabase.from('products').select('*').order('id');
       if (productsData && productsData.length > 0) {
@@ -89,12 +104,18 @@ export default function PosApp() {
     // 2. Realtime Subscriptions
     const tablesSub = supabase.channel('tables-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, payload => {
+        const mapTable = (raw: any): TableData => ({
+          ...raw,
+          customerName: raw.customer_name || raw.customerName,
+          linkedTo: raw.linked_to || raw.linkedTo
+        } as TableData);
+
         if (payload.eventType === 'UPDATE') {
-          setTables(prev => prev.map(t => t.id === payload.new.id ? payload.new as TableData : t));
+          setTables(prev => prev.map(t => t.id === payload.new.id ? mapTable(payload.new) : t));
         } else if (payload.eventType === 'INSERT') {
           setTables(prev => {
-            if (prev.find(t => t.id === payload.new.id)) return prev.map(t => t.id === payload.new.id ? payload.new as TableData : t);
-            return [...prev, payload.new as TableData].sort((a, b) => a.id.localeCompare(b.id));
+            if (prev.find(t => t.id === payload.new.id)) return prev.map(t => t.id === payload.new.id ? mapTable(payload.new) : t);
+            return [...prev, mapTable(payload.new)].sort((a, b) => a.id.localeCompare(b.id));
           });
         }
       }).subscribe();
@@ -104,10 +125,10 @@ export default function PosApp() {
         if (payload.eventType === 'INSERT') {
           setPosOrders(prev => {
             if (prev.find(o => o.id === payload.new.id)) return prev;
-            return [payload.new as Order, ...prev];
+            return [{ ...payload.new, customerName: payload.new.customer_name || payload.new.customerName } as Order, ...prev];
           });
         } else if (payload.eventType === 'UPDATE') {
-          setPosOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new as Order : o));
+          setPosOrders(prev => prev.map(o => o.id === payload.new.id ? { ...payload.new, customerName: payload.new.customer_name || payload.new.customerName } as Order : o));
         }
       }).subscribe();
 
@@ -116,10 +137,23 @@ export default function PosApp() {
         if (payload.eventType === 'INSERT') {
           setKdsOrders(prev => {
             if (prev.find(k => k.id === payload.new.id)) return prev;
-            return [payload.new as KdsOrder, ...prev];
+            let timeInSeconds = payload.new.time_in_seconds || 0;
+            if (payload.new.status !== 'done' && payload.new.created_at) {
+              timeInSeconds = Math.max(0, Math.floor((Date.now() - new Date(payload.new.created_at).getTime()) / 1000));
+            }
+            return [{ ...payload.new, timeInSeconds, customerName: payload.new.customer_name } as KdsOrder, ...prev];
           });
         } else if (payload.eventType === 'UPDATE') {
-          setKdsOrders(prev => prev.map(k => k.id === payload.new.id ? payload.new as KdsOrder : k));
+          setKdsOrders(prev => prev.map(k => {
+            if (k.id === payload.new.id) {
+              let timeInSeconds = payload.new.time_in_seconds || 0;
+              if (payload.new.status !== 'done' && payload.new.created_at) {
+                timeInSeconds = Math.max(0, Math.floor((Date.now() - new Date(payload.new.created_at).getTime()) / 1000));
+              }
+              return { ...payload.new, timeInSeconds, customerName: payload.new.customer_name } as KdsOrder;
+            }
+            return k;
+          }));
         }
       }).subscribe();
 
@@ -213,6 +247,23 @@ export default function PosApp() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
   };
 
+  const generateNextTicketId = () => {
+    const today = new Date();
+    const yy = String(today.getFullYear()).slice(-2);
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const dateStr = `${yy}${mm}${dd}`; // e.g. 260719
+
+    const todayPrefix = today.toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+    const todayOrdersCount = posOrders.filter(o => o.time.startsWith(todayPrefix)).length;
+    return `T${dateStr}-${String(todayOrdersCount + 1).padStart(3, '0')}`;
+  };
+
+  const toDbOrder = (o: Order) => {
+    const { customerName, amountGiven, change, ...rest } = o;
+    return { ...rest, customer_name: customerName || null };
+  };
+
   const handlePrintBillsCheckout = (method: string, amountGiven?: number, change?: number, itemsToCheckOut: CartItem[] = cart) => {
     if (itemsToCheckOut.length === 0) return;
 
@@ -260,9 +311,9 @@ export default function PosApp() {
     const discountedSubtotal = Math.max(0, subtotal - discount);
     const tax = Math.round(discountedSubtotal * taxRate);
     const total = discountedSubtotal + tax;
-    const ticketId = `T-${Math.floor(100 + Math.random() * 899)}`;
+    const ticketId = generateNextTicketId();
 
-    const queue = ticketId.slice(-2);
+    const queue = ticketId.split('-')[1];
     const tableName = activeTableId ? tables.find(t => t.id === activeTableId)?.name : undefined;
 
     const receiptData = {
@@ -288,25 +339,20 @@ export default function PosApp() {
     
     setPrintedReceiptDetails(receiptData);
 
-    // Bluetooth Printing Logic
-    if (isPrinterConnected) {
-      const dataToPrint = buildReceiptData(
-        receiptData.orderId,
-        receiptData.items,
-        receiptData.subtotal,
-        receiptData.discount,
-        receiptData.tax,
-        receiptData.total,
-        receiptData.paymentMethod || "UNKNOWN",
-        receiptData.amountGiven,
-        receiptData.change,
-        receiptData.customerName,
-        receiptData.discountName,
-        true, // isPaid
-        receiptData.table,
-        receiptData.queue
-      );
-      printerManager.print(dataToPrint);
+    // Bluetooth Printing Logic (KASIR)
+    if (connectedPrinters.kasir) {
+      const dataToPrint = buildKasirReceipt({
+        storeName: "POS18 Coffee", // you could fetch from store profile
+        storeAddress: "Jakarta",
+        cashierName: currentUser?.name.split(' ')[0] || "Kasir",
+        tableNo: receiptData.table,
+        items: receiptData.items.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
+        total: receiptData.total,
+        paid: receiptData.amountGiven || receiptData.total,
+        change: receiptData.change || 0,
+        paymentMethod: receiptData.paymentMethod || "UNKNOWN",
+      });
+      printReceipt(dataToPrint, "Kasir").catch(() => {});
       // We don't show the modal if physical printer is used
     } else {
       setShowReceiptModal(true);
@@ -360,15 +406,17 @@ export default function PosApp() {
         });
 
         // Print KDS Ticket if printer connected
-        if (isPrinterConnected) {
-          const kdsData = buildKdsTicketData(
-            ticketId,
-            'Barista',
-            baristaItems.map(i => ({ name: i.name, qty: 1, notes: i.notes })), // qty is embedded in name here, so pass 1 or extract
-            checkoutCustomerName,
-            true // already paid
-          );
-          printerManager.print(kdsData);
+        if (connectedPrinters.barista) {
+          baristaItems.forEach((item, index) => {
+            const bData = buildBaristaTicket({
+              orderId: ticketId,
+              tableNo: activeTableId || undefined,
+              item: { name: item.name, notes: item.notes }, // minimal info for now
+              itemIndex: index + 1,
+              totalItems: baristaItems.length,
+            });
+            printReceipt(bData, "Barista").catch(() => {});
+          });
         }
       }
 
@@ -405,15 +453,13 @@ export default function PosApp() {
         });
 
         // Print KDS Ticket if printer connected
-        if (isPrinterConnected) {
-          const kdsData = buildKdsTicketData(
-            ticketId,
-            'Kitchen',
-            kitchenItems.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
-            checkoutCustomerName,
-            true // already paid
-          );
-          printerManager.print(kdsData);
+        if (connectedPrinters.dapur) {
+          const dData = buildDapurTicket({
+            orderId: ticketId,
+            tableNo: activeTableId || undefined,
+            items: kitchenItems.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
+          });
+          printReceipt(dData, "Dapur").catch(() => {});
         }
       }
 
@@ -499,16 +545,24 @@ export default function PosApp() {
         );
         if (!stockRow) continue;
 
+        let alertThreshold = stockRow.min_stock || 500;
+        const nameLower = stockRow.name.toLowerCase();
+        if (nameLower.includes("cup")) {
+          alertThreshold = 200;
+        } else if (stockRow.unit?.toLowerCase() === "porsi" || stockRow.category?.toLowerCase().includes("bahan baku")) {
+          alertThreshold = 20;
+        }
+
         const newStockLevel = Math.max((stockRow.stock_level || 0) - totalDeduct, 0);
-        const newStatus = newStockLevel < (stockRow.min_stock || 500) ? 'Low Stock' : 'Healthy';
+        const newStatus = newStockLevel <= alertThreshold ? 'Low Stock' : 'Healthy';
 
         // Update ke Supabase
         await supabase.from('stock_items')
           .update({ stock_level: newStockLevel, status: newStatus })
           .eq('sku', stockRow.sku);
           
-        if (newStatus === 'Low Stock' && (stockRow.stock_level || 0) >= (stockRow.min_stock || 500)) {
-          const message = `⚠️ *PERINGATAN STOK MINIMAL* ⚠️\n\nBahan Baku: *${stockRow.name}*\nSisa Stok: ${newStockLevel} ${stockRow.unit || ''}\nBatas Minimal: ${stockRow.min_stock || 500} ${stockRow.unit || ''}\nStatus: Perlu Segera Restok!`;
+        if (newStockLevel <= alertThreshold && (stockRow.stock_level || 0) > alertThreshold) {
+          const message = `⚠️ <b>PERINGATAN STOK MENIPIS</b> ⚠️\n\nBahan Baku: <b>${stockRow.name}</b>\nSisa Stok: <b>${newStockLevel} ${stockRow.unit || ''}</b>\nBatas Minimal: ${alertThreshold} ${stockRow.unit || ''}\nStatus: Perlu Segera Restok!`;
           sendTelegramNotification(message);
         }
 
@@ -541,12 +595,12 @@ export default function PosApp() {
 
         const currentStock = dbProduct.stock || 0;
         const newStock = Math.max(currentStock - item.quantity, 0);
-        const minStock = 10; // Default min stock for direct products if not defined
+        const minStock = 20; // Default min stock for direct products (Porsi)
 
         await supabase.from('products').update({ stock: newStock }).eq('id', item.product.id);
         
-        if (newStock < minStock && currentStock >= minStock) {
-          const message = `⚠️ *PERINGATAN STOK MINIMAL* ⚠️\n\nProduk: *${item.product.name}*\nSisa Stok: ${newStock}\nBatas Minimal: ${minStock}\nStatus: Perlu Segera Restok!`;
+        if (newStock <= minStock && currentStock > minStock) {
+          const message = `⚠️ <b>PERINGATAN STOK MENIPIS</b> ⚠️\n\nProduk/Porsi: <b>${item.product.name}</b>\nSisa Stok: <b>${newStock} Porsi</b>\nBatas Minimal: ${minStock}\nStatus: Perlu Segera Restok!`;
           sendTelegramNotification(message);
         }
 
@@ -556,28 +610,40 @@ export default function PosApp() {
 
     deductManualProductStock(itemsToCheckOut);
 
-    // Hitung total COGS dari item yang terjual
-    let totalCogs = 0;
+    // Hitung total COGS dari item yang terjual dan kelompokkan per bahan baku
+    const ingCostsMap: Record<string, number> = {};
+
     for (const item of itemsToCheckOut) {
       const recipe = recipes.find(r => r.name.toLowerCase().trim() === item.product.name.toLowerCase().trim() || item.product.name.toLowerCase().includes(r.name.toLowerCase().split(" ")[0]));
-      if (recipe) {
-        totalCogs += recipe.cogs * item.quantity;
+      
+      if (recipe && recipe.ingredients) {
+        recipe.ingredients.forEach(ing => {
+          const costStr = String(ing.totalCost || 0);
+          const cost = parseFloat(costStr.replace(/[^\d.-]/g, '')) || 0;
+          const totalIngCost = cost * item.quantity;
+          if (totalIngCost > 0) {
+            ingCostsMap[ing.name] = (ingCostsMap[ing.name] || 0) + totalIngCost;
+          }
+        });
       } else if (item.product.cogs) {
-        totalCogs += item.product.cogs * item.quantity;
+          ingCostsMap[item.product.name] = (ingCostsMap[item.product.name] || 0) + (item.product.cogs * item.quantity);
       }
 
       // --- Intercept Dynamic Cup Cost ---
       if (item.selectedMood) {
         const moodLower = item.selectedMood.toLowerCase();
         let cupCost = 0;
+        let cupName = "";
         if (moodLower === "hot") {
           const cupStock = stockItems.find(s => s.name.toLowerCase().trim().includes("cup 6 oz"));
-          if (cupStock && cupStock.unitCost) cupCost = cupStock.unitCost;
+          if (cupStock && cupStock.unitCost) { cupCost = cupStock.unitCost; cupName = cupStock.name; }
         } else if (moodLower === "cold" || moodLower === "ice") {
           const cupStock = stockItems.find(s => s.name.toLowerCase().trim().includes("cup 12 oz"));
-          if (cupStock && cupStock.unitCost) cupCost = cupStock.unitCost;
+          if (cupStock && cupStock.unitCost) { cupCost = cupStock.unitCost; cupName = cupStock.name; }
         }
-        totalCogs += cupCost * item.quantity;
+        if (cupCost > 0 && cupName) {
+           ingCostsMap[cupName] = (ingCostsMap[cupName] || 0) + (cupCost * item.quantity);
+        }
       }
     }
 
@@ -591,17 +657,17 @@ export default function PosApp() {
       type: "inflow"
     };
 
-    const cogsTx: Transaction | null = totalCogs > 0 ? {
-      id: `TXN-COGS-${Date.now()}`,
+    const cogsTxs: Transaction[] = Object.entries(ingCostsMap).map(([ingName, amount], idx) => ({
+      id: `TXN-COGS-${Date.now()}-${idx}`,
       date: new Date().toLocaleDateString("id-ID"),
-      title: `COGS Checkout #${ticketId}`,
+      title: `COGS: ${ingName}`,
       category: "Bahan Baku",
       status: "Cleared",
-      amount: totalCogs,
+      amount,
       type: "outflow"
-    } : null;
+    }));
 
-    const txsToInsert = cogsTx ? [newTx, cogsTx] : [newTx];
+    const txsToInsert = [newTx, ...cogsTxs];
 
     setTransactions(prev => [...txsToInsert, ...prev]);
     supabase.from('transactions').insert(txsToInsert).then(res => {
@@ -624,7 +690,7 @@ export default function PosApp() {
 
     const newOrder: Order = {
       id: `INV-${ticketId}`,
-      queue: ticketId.slice(-2),
+      queue: ticketId.split('-')[1],
       staff: currentUser?.name.split(' ')[0] || "Kasir",
       table: activeTableId || "-",
       pager: "-",
@@ -636,7 +702,8 @@ export default function PosApp() {
       status: "Selesai" as Order["status"],
       total,
       time: new Date().toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-      items: cart
+      items: itemsToCheckOut,
+      created_at: new Date().toISOString()
     };
 
     setPosOrders(prev => {
@@ -644,14 +711,50 @@ export default function PosApp() {
         const existingIdx = prev.findIndex(o => o.table === activeTableId && o.status === "Unpaid");
         if (existingIdx >= 0) {
           const updated = [...prev];
-          updated[existingIdx] = { ...updated[existingIdx], status: "Selesai", payment: method, amountGiven, change };
-          // Supabase Update (Optimistic)
-          supabase.from('orders').update({ status: "Selesai", payment: method, amountGiven, change }).eq('id', updated[existingIdx].id).then();
+          
+          if (itemsToCheckOut.length === cart.length) {
+            // Full payment
+            updated[existingIdx] = { ...updated[existingIdx], status: "Selesai", payment: method, amountGiven, change };
+            supabase.from('orders').update({ status: "Selesai", payment: method }).eq('id', updated[existingIdx].id).then();
+          } else {
+            // Partial payment
+            const paidItemIds = new Set(itemsToCheckOut.map(i => i.id));
+            const remaining = cart.filter(i => !paidItemIds.has(i.id));
+            
+            let taxR = 0.11;
+            try {
+              const savedBiaya = localStorage.getItem("pos_biaya_settings");
+              if (savedBiaya) {
+                const biayaList = JSON.parse(savedBiaya);
+                const pb1 = biayaList.find((b: any) => b.id === "FEE-001");
+                if (pb1 && !pb1.isActive) taxR = 0;
+                else if (pb1 && pb1.isActive) taxR = pb1.value / 100;
+              }
+            } catch(e) {}
+            
+            const remainingSubtotal = remaining.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+            const remainingTotal = remainingSubtotal + Math.round(remainingSubtotal * taxR);
+            
+            // Update Unpaid order
+            updated[existingIdx] = { ...updated[existingIdx], items: remaining, total: remainingTotal };
+            supabase.from('orders').update({ items: remaining, total: remainingTotal }).eq('id', updated[existingIdx].id).then();
+            
+            // Insert new partial paid order
+            const partialOrder: Order = {
+              ...newOrder,
+              id: `INV-${ticketId}-P${Date.now().toString().slice(-4)}`,
+              items: itemsToCheckOut,
+              total: total,
+              created_at: new Date().toISOString()
+            };
+            supabase.from('orders').insert([toDbOrder(partialOrder)]).then();
+            updated.unshift(partialOrder);
+          }
           return updated;
         }
       }
       // Supabase Insert (Optimistic)
-      supabase.from('orders').insert([newOrder]).then();
+      supabase.from('orders').insert([toDbOrder(newOrder)]).then();
       return [newOrder, ...prev];
     });
 
@@ -664,7 +767,9 @@ export default function PosApp() {
         setTables(prev => prev.map(t => {
           if (t.id === activeTableId || t.linkedTo === activeTableId) {
             const updated: TableData = { ...t, status: "Kosong", cart: [], current: 0, linkedTo: undefined, customerName: undefined, time: "" };
-            supabase.from('tables').update(updated).eq('id', t.id).then();
+            supabase.from('tables').update({
+              status: "Kosong", cart: [], current: 0, linked_to: null, customer_name: null, time: ""
+            }).eq('id', t.id).then();
             return updated;
           }
           return t;
@@ -682,7 +787,9 @@ export default function PosApp() {
           setTables(prevTables => prevTables.map(t => {
             if (t.id === activeTableId) {
               const updated: TableData = { ...t, cart: remaining, status: remaining.length > 0 ? "Sudah Dipesan" : "Kosong" };
-              supabase.from('tables').update(updated).eq('id', t.id).then();
+              supabase.from('tables').update({
+                cart: remaining, status: updated.status
+              }).eq('id', t.id).then();
               return updated;
             }
             return t;
@@ -717,39 +824,85 @@ export default function PosApp() {
       setTables(prev => prev.map(t => {
         if (t.id === activeTableId) {
           const updated: TableData = { ...t, status: "Sudah Dipesan", cart: cart, current: 1, customerName: customerName || t.customerName };
-          supabase.from('tables').update(updated).eq('id', t.id).then();
+          supabase.from('tables').update({
+            status: "Sudah Dipesan",
+            cart: cart,
+            current: 1,
+            customer_name: updated.customerName || null
+          }).eq('id', t.id).then();
           return updated;
         }
         return t;
       }));
 
-      setPosOrders(prev => {
-        const existingIdx = prev.findIndex(o => o.table === activeTableId && o.status === "Unpaid");
-        if (existingIdx >= 0) {
-          const updated = [...prev];
-          updated[existingIdx] = { ...updated[existingIdx], items: cart, total };
-          supabase.from('orders').update({ items: cart, total }).eq('id', updated[existingIdx].id).then();
-          return updated;
-        }
+      // Find existing order BEFORE calling setPosOrders
+      const existingIdx = posOrders.findIndex(o => o.table === activeTableId && o.status === "Unpaid");
+      const existingOrder = existingIdx >= 0 ? posOrders[existingIdx] : null;
 
-        const ticketId = `T-${Math.floor(100 + Math.random() * 899)}`;
-        const newOrder: Order = { id: `INV-${ticketId}`, queue: "-", staff: currentUser?.name.split(' ')[0] || "Kasir", table: activeTableId, pager: "-", type: "Dine In", payment: "Unpaid", status: "Unpaid", total, time: new Date().toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }), items: cart };
-        supabase.from('orders').insert([newOrder]).then();
+      let ticketId = "";
+      let newItemsToProcess: CartItem[] = [];
 
+      if (existingOrder) {
+        ticketId = existingOrder.id.replace("INV-", "");
+        
+        // Find which items are new or have increased quantity
+        newItemsToProcess = cart.map(newItem => {
+           const oldItem = existingOrder.items.find(i => i.id === newItem.id);
+           const diffQty = newItem.quantity - (oldItem ? oldItem.quantity : 0);
+           if (diffQty > 0) {
+              return { ...newItem, quantity: diffQty };
+           }
+           return null;
+        }).filter(Boolean) as CartItem[];
+
+        // Update existing order locally & DB
+        const updatedOrder = { ...existingOrder, items: cart, total, customerName: customerName || existingOrder.customerName };
+        setPosOrders(prev => prev.map(o => o.id === existingOrder.id ? updatedOrder : o));
+        supabase.from('orders').update({ items: cart, total, customer_name: updatedOrder.customerName || null }).eq('id', existingOrder.id).then();
+      } else {
+        ticketId = generateNextTicketId();
+        newItemsToProcess = cart; // all items are new
+
+        const newOrder: Order = { 
+          id: `INV-${ticketId}`, 
+          queue: ticketId.split('-')[1], 
+          staff: currentUser?.name.split(' ')[0] || "Kasir", 
+          table: activeTableId, 
+          pager: "-", 
+          customerName: customerName || undefined,
+          type: "Dine In", 
+          payment: "Unpaid", 
+          status: "Unpaid", 
+          total, 
+          time: new Date().toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }), 
+          items: cart,
+          created_at: new Date().toISOString()
+        };
+        
+        // Insert new order locally & DB
+        setPosOrders(prev => [newOrder, ...prev]);
+        supabase.from('orders').insert([toDbOrder(newOrder)]).then();
+      }
+
+      // Now we process `newItemsToProcess` for KDS and Printers (SIDE EFFECTS)
+      if (newItemsToProcess.length > 0) {
         const isKitchenItem = (category: string) => {
           const c = category.toLowerCase();
           return c.includes('food') || c.includes('makanan') || c.includes('snack') || c.includes('pastry');
         };
 
-        const baristaCart = cart.filter(i => !isKitchenItem(i.product.category));
-        const kitchenCart = cart.filter(i => isKitchenItem(i.product.category));
+        const baristaCart = newItemsToProcess.filter(i => !isKitchenItem(i.product.category));
+        const kitchenCart = newItemsToProcess.filter(i => isKitchenItem(i.product.category));
 
         const kdsOrdersToInsert: KdsOrder[] = [];
         const dbPayloadsToInsert: any[] = [];
+        
+        // Use timestamp to prevent KDS ID clashes if adding to existing order
+        const suffixId = Date.now().toString().slice(-4); 
 
         if (baristaCart.length > 0) {
           const baristaItems = baristaCart.map((item, idx) => ({
-            id: `pos-${ticketId}-B-${idx}`,
+            id: `pos-${ticketId}-B-${suffixId}-${idx}`,
             name: `${item.quantity}x ${item.product.name}`,
             notes: (["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase()))
               ? `${item.selectedSize} · Ice: ${item.selectedIce} · Sugar: ${item.selectedSugar} ${item.notes ? `(${item.notes})` : ""}`
@@ -758,7 +911,7 @@ export default function PosApp() {
           }));
 
           kdsOrdersToInsert.push({
-            id: `${ticketId}-B`,
+            id: `${ticketId}-B-${suffixId}`,
             type: "Dine In",
             table: activeTableId || undefined,
             timeInSeconds: 0,
@@ -769,7 +922,7 @@ export default function PosApp() {
           });
 
           dbPayloadsToInsert.push({
-            id: `${ticketId}-B`,
+            id: `${ticketId}-B-${suffixId}`,
             type: "Dine In",
             table: activeTableId || null,
             time_in_seconds: 0,
@@ -779,21 +932,23 @@ export default function PosApp() {
             customer_name: customerName || null
           });
 
-          if (isPrinterConnected) {
-            const kdsData = buildKdsTicketData(
-              ticketId,
-              'Barista',
-              baristaItems.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
-              customerName,
-              false // Not paid yet
-            );
-            printerManager.print(kdsData);
+          if (connectedPrinters.barista) {
+            baristaItems.forEach((item, index) => {
+              const bData = buildBaristaTicket({
+                orderId: ticketId + (existingOrder ? " (TAMBAHAN)" : ""),
+                tableNo: activeTableId || undefined,
+                item: { name: item.name, notes: item.notes },
+                itemIndex: index + 1,
+                totalItems: baristaItems.length,
+              });
+              printReceipt(bData, "Barista").catch(() => {});
+            });
           }
         }
 
         if (kitchenCart.length > 0) {
           const kitchenItems = kitchenCart.map((item, idx) => ({
-            id: `pos-${ticketId}-K-${idx}`,
+            id: `pos-${ticketId}-K-${suffixId}-${idx}`,
             name: `${item.quantity}x ${item.product.name}`,
             notes: (["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase()))
               ? `${item.selectedSize} · Ice: ${item.selectedIce} · Sugar: ${item.selectedSugar} ${item.notes ? `(${item.notes})` : ""}`
@@ -802,7 +957,7 @@ export default function PosApp() {
           }));
 
           kdsOrdersToInsert.push({
-            id: `${ticketId}-K`,
+            id: `${ticketId}-K-${suffixId}`,
             type: "Dine In",
             table: activeTableId || undefined,
             timeInSeconds: 0,
@@ -813,7 +968,7 @@ export default function PosApp() {
           });
 
           dbPayloadsToInsert.push({
-            id: `${ticketId}-K`,
+            id: `${ticketId}-K-${suffixId}`,
             type: "Dine In",
             table: activeTableId || null,
             time_in_seconds: 0,
@@ -823,27 +978,24 @@ export default function PosApp() {
             customer_name: customerName || null
           });
 
-          if (isPrinterConnected) {
-            const kdsData = buildKdsTicketData(
-              ticketId,
-              'Kitchen',
-              kitchenItems.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
-              customerName,
-              false // Not paid yet
-            );
-            printerManager.print(kdsData);
-        }
+          if (connectedPrinters.dapur) {
+            const dData = buildDapurTicket({
+              orderId: ticketId + (existingOrder ? " (TAMBAHAN)" : ""),
+              tableNo: activeTableId || undefined,
+              items: kitchenItems.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
+            });
+            printReceipt(dData, "Dapur").catch(() => {});
           }
+        }
 
-        // Add Kasir KDS ticket for "Simpan & Tunda"
-        const kasirItems = cart.map((item, idx) => ({
-          id: `pos-${ticketId}-KSR-${idx}`,
+        const kasirItems = newItemsToProcess.map((item, idx) => ({
+          id: `pos-${ticketId}-KSR-${suffixId}-${idx}`,
           name: `${item.quantity}x ${item.product.name}`,
           checked: false
         }));
 
         kdsOrdersToInsert.push({
-          id: `${ticketId}-KSR`,
+          id: `${ticketId}-KSR-${suffixId}`,
           type: "Dine In",
           table: activeTableId || undefined,
           timeInSeconds: 0,
@@ -854,7 +1006,7 @@ export default function PosApp() {
         });
 
         dbPayloadsToInsert.push({
-          id: `${ticketId}-KSR`,
+          id: `${ticketId}-KSR-${suffixId}`,
           type: "Dine In",
           table: activeTableId || null,
           time_in_seconds: 0,
@@ -870,9 +1022,8 @@ export default function PosApp() {
             if (res.error) console.error("KDS Insert Error:", res.error);
           });
         }
+      }
 
-        return [newOrder, ...prev];
-      });
       triggerToast(`Pesanan untuk Meja ${tables.find(t => t.id === activeTableId)?.name || activeTableId} berhasil disimpan (Belum dibayar).`, "info");
       setCart([]);
       setActiveTableId(null);
@@ -931,32 +1082,22 @@ export default function PosApp() {
       {showPaymentModal && (
         <PaymentModal
           key={`pay-${cart.length}-${cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0)}`}
-          total={(() => {
-            const sub = cart.reduce((sum, item) => sum + calculateItemUnitPrice(item) * item.quantity, 0);
-            let d = 0;
-            if (checkoutPromo) {
-              if (checkoutPromo.type === "Persentase") {
-                d = (sub * checkoutPromo.value) / 100;
-              } else if (checkoutPromo.type === "Nominal") {
-                d = checkoutPromo.value;
-              } else if (checkoutPromo.type === "Karyawan") {
-                const drink = cart.find(item => 
-                  item.product.category.toLowerCase().includes('kopi') || 
-                  item.product.category.toLowerCase().includes('minuman') || 
-                  item.product.category.toLowerCase().includes('tea') ||
-                  item.product.category.toLowerCase().includes('signature') ||
-                  item.product.category.toLowerCase().includes('coffee')
-                );
-                if (drink) d = calculateItemUnitPrice(drink);
-              }
-            }
-            return Math.max(0, sub - d);
-          })()}
+          total={cart.reduce((sum, item) => sum + calculateItemUnitPrice(item) * item.quantity, 0)}
           cart={cart}
+          promos={promos}
           onClose={() => setShowPaymentModal(false)}
-          onSuccess={(method, amountGiven, change) => {
+          onSuccess={(method, amountGiven, change, appliedPromo) => {
             setShowPaymentModal(false);
-            handlePrintBillsCheckout(method, amountGiven, change);
+            if (appliedPromo) {
+              setCheckoutPromo(appliedPromo);
+              // Wait for state to update
+              setTimeout(() => {
+                handlePrintBillsCheckout(method, amountGiven, change);
+              }, 100);
+            } else {
+              setCheckoutPromo(null);
+              handlePrintBillsCheckout(method, amountGiven, change);
+            }
           }}
           onPartialSuccess={(method, paidItems) => {
             setShowPaymentModal(false);
@@ -978,7 +1119,7 @@ export default function PosApp() {
       </div>
 
       <Routes>
-        <Route element={<POSLayout />}>
+        <Route element={<POSLayout posOrders={posOrders} />}>
           <Route index element={
             <POSDashboard products={computedProducts} cart={cart} setCart={setCart} onPrintBills={(name, promo) => { setCheckoutCustomerName(name); setCheckoutPromo(promo || null); setShowPaymentModal(true); }} onSaveOrder={handleSaveOrderToTable} viewMode="menu" tables={tables} setTables={setTables} activeTableId={activeTableId} setActiveTableId={setActiveTableId} onNotify={triggerToast} />
           } />

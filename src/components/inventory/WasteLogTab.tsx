@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { StockItem, WasteLog } from "../../types";
 import { supabase } from "../../lib/supabase";
+import { sendTelegramMessage } from "../../lib/telegram";
+import { useAuthStore } from "../../store/authStore";
 
 interface Props {
   stockItems: StockItem[];
@@ -10,6 +12,7 @@ interface Props {
 }
 
 export default function WasteLogTab({ stockItems, wasteLogs, setWasteLogs, onNotify }: Props) {
+  const { currentUser } = useAuthStore();
   const [form, setForm] = useState({
     itemSku: "",
     quantity: "1",
@@ -43,6 +46,12 @@ export default function WasteLogTab({ stockItems, wasteLogs, setWasteLogs, onNot
     setWasteLogs(prev => [newLog, ...prev]);
     const { error } = await supabase.from('waste_logs').insert([newLog]);
     if (error) { onNotify("Gagal mencatat pembuangan!", "warning"); return; }
+    
+    // Telegram Notification
+    const user = currentUser?.name || "Sistem";
+    const telegramMsg = `🗑️ <b>BARANG RUSAK / TERBUANG</b> 🗑️\n\n👤 <b>Oleh:</b> ${user}\n📦 <b>Barang:</b> ${selectedItem.name}\n📉 <b>Jumlah:</b> ${qty} ${selectedItem.unit}\n❓ <b>Alasan:</b> ${form.reason}\n📝 <b>Catatan:</b> ${form.notes || '-'}`;
+    sendTelegramMessage(telegramMsg);
+    
     onNotify(`Log pembuangan untuk ${selectedItem.name} berhasil dicatat.`, "success");
     setForm({ itemSku: "", quantity: "1", reason: "Tumpah", notes: "" });
   };

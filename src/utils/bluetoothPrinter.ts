@@ -49,7 +49,7 @@ export interface ReceiptData {
 }
 
 // ─── State (singleton) ────────────────────────────────────────────────────────
-let connectedPrinter: PrinterDevice | null = null;
+const connectedPrinters: Record<string, PrinterDevice> = {};
 
 // ─── Helper: Build ESC/POS byte buffer from lines ─────────────────────────────
 function buildBuffer(data: ReceiptData): Uint8Array {
@@ -123,7 +123,7 @@ async function writeChunked(
  * Scan dan sambungkan ke printer Bluetooth terdekat.
  * Memunculkan native browser dialog pemilihan perangkat BT.
  */
-export async function scanAndConnect(): Promise<PrinterDevice> {
+export async function scanAndConnect(role: string): Promise<PrinterDevice> {
   if (!navigator.bluetooth) {
     throw new Error('Web Bluetooth tidak didukung di browser ini. Gunakan Chrome/Edge.');
   }
@@ -216,51 +216,53 @@ export async function scanAndConnect(): Promise<PrinterDevice> {
     characteristic,
   };
 
-  connectedPrinter = printerDevice;
+  connectedPrinters[role] = printerDevice;
 
   // Listen for disconnect
   device.addEventListener('gattserverdisconnected', () => {
-    connectedPrinter = null;
-    console.log('Printer terputus.');
+    delete connectedPrinters[role];
+    console.log(`Printer ${role} terputus.`);
   });
 
   return printerDevice;
 }
 
 /** Disconnect dari printer aktif */
-export function disconnectPrinter() {
-  if (connectedPrinter?.device.gatt?.connected) {
-    connectedPrinter.device.gatt.disconnect();
+export function disconnectPrinter(role: string) {
+  const printer = connectedPrinters[role];
+  if (printer?.device.gatt?.connected) {
+    printer.device.gatt.disconnect();
   }
-  connectedPrinter = null;
+  delete connectedPrinters[role];
 }
 
 /** Cek apakah ada printer yang terhubung */
-export function isConnected(): boolean {
-  return !!(connectedPrinter?.device.gatt?.connected);
+export function isConnected(role: string): boolean {
+  return !!(connectedPrinters[role]?.device.gatt?.connected);
 }
 
 /** Ambil info printer yang sedang terhubung */
-export function getConnectedPrinter(): PrinterDevice | null {
-  return connectedPrinter;
+export function getConnectedPrinter(role: string): PrinterDevice | null {
+  return connectedPrinters[role] || null;
 }
 
 /** Cetak dokumen (ReceiptData) ke printer yang aktif */
-export async function printReceipt(data: ReceiptData): Promise<void> {
-  if (!connectedPrinter) throw new Error('Tidak ada printer yang terhubung.');
+export async function printReceipt(data: ReceiptData, role: string): Promise<void> {
+  const printer = connectedPrinters[role];
+  if (!printer) throw new Error(`Tidak ada printer yang terhubung untuk ${role}.`);
   const buffer = buildBuffer(data);
-  await writeChunked(connectedPrinter.characteristic, buffer);
+  await writeChunked(printer.characteristic, buffer);
 }
 
 /** Test print untuk memverifikasi koneksi printer */
-export async function testPrint(): Promise<void> {
+export async function testPrint(role: string): Promise<void> {
   const testData: ReceiptData = {
     lines: [
       { text: '',              align: 'center' },
       { text: 'POS18 COFFEE', align: 'center', bold: true, size: 'double' },
       { text: '',              align: 'center' },
       { text: '================================', align: 'left' },
-      { text: '  TEST PRINT BERHASIL!', align: 'center', bold: true },
+      { text: `  TEST PRINT ${role.toUpperCase()} BERHASIL!`, align: 'center', bold: true },
       { text: '================================', align: 'left' },
       { text: '',              align: 'left' },
       { text: 'Printer terhubung dengan baik.', align: 'center' },
@@ -272,7 +274,7 @@ export async function testPrint(): Promise<void> {
     cut: true,
   };
 
-  await printReceipt(testData);
+  await printReceipt(testData, role);
 }
 
 /** Helper: Buat struk Kasir dari data order */

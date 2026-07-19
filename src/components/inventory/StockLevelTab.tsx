@@ -3,6 +3,7 @@ import { StockItem, WasteLog } from "../../types";
 import { supabase } from "../../lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuthStore } from "../../store/authStore";
+import { sendTelegramMessage } from "../../lib/telegram";
 
 interface Props {
   stockItems: StockItem[];
@@ -14,7 +15,7 @@ interface Props {
 const EMPTY_STOCK: StockItem = {
   sku: "",
   name: "",
-  category: "Biji Kopi",
+  category: "Bahan Baku Minuman",
   quantity: "0",
   unit: "Kilogram",
   warehouse: "Penyimpanan Utama",
@@ -52,8 +53,8 @@ export default function StockLevelTab({ stockItems, setStockItems, wasteLogs = [
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<StockItem | null>(null);
 
-  const baristaCats = ["Biji Kopi", "Alternatif Susu", "Sirup & Rasa", "Kemasan", "Air Mineral"];
-  const kitchenCats = ["Ayam", "Frozen", "Bakmie", "Mie Indomie", "Buah", "Daging", "Garnis"];
+  const baristaCats = ["Bahan Baku Minuman", "Bahan Pendukung Minuman", "Operasional", "Kemasan"];
+  const kitchenCats = ["Bahan Baku Makanan", "Frozen", "Bakmie", "Mie Indomie", "Buah", "Daging", "Garnis"];
 
   const displayedCategories = ["Semua"];
   if (activeDepartment === "Barista" || activeDepartment === "Semua Departemen") displayedCategories.push(...baristaCats);
@@ -122,6 +123,10 @@ export default function StockLevelTab({ stockItems, setStockItems, wasteLogs = [
       time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + " WIB"
     };
     await supabase.from('waste_logs').insert([newLog]);
+    
+    // Telegram Notification
+    const telegramMsg = `🔄 <b>STOCK ADJUSTMENT</b> 🔄\n\n👤 <b>Oleh:</b> ${user}\n📦 <b>Barang:</b> ${item.name}\n📊 <b>Stok Awal:</b> ${currentQty} ${item.unit}\n📈 <b>Stok Baru:</b> ${newQty} ${item.unit} (+10)\n📝 <b>Catatan:</b> Isi Cepat`;
+    sendTelegramMessage(telegramMsg);
 
     onNotify(`Berhasil menambahkan 10 ${item.unit} ke ${item.name}`, "success");
   };
@@ -186,6 +191,10 @@ export default function StockLevelTab({ stockItems, setStockItems, wasteLogs = [
           time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + " WIB"
         };
         await supabase.from('waste_logs').insert([newLog]);
+
+        // Telegram Notification
+        const telegramMsg = `🔄 <b>STOCK ADJUSTMENT</b> 🔄\n\n👤 <b>Oleh:</b> ${user}\n📦 <b>Barang:</b> ${updatedForm.name}\n📊 <b>Stok Awal:</b> ${origQty} ${updatedForm.unit}\n📈 <b>Stok Baru:</b> ${newQty} ${updatedForm.unit}\n📝 <b>Catatan:</b> Edit Manual`;
+        sendTelegramMessage(telegramMsg);
       }
       
       onNotify("Data stok berhasil diperbarui!", "success");
@@ -439,18 +448,17 @@ export default function StockLevelTab({ stockItems, setStockItems, wasteLogs = [
                 <label className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-2 block">Kategori</label>
                 <div className="relative">
                   <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} className="w-full bg-[#f4ece3] border-none rounded-xl px-4 py-3 font-bold text-slate-800 appearance-none focus:outline-none focus:ring-2 focus:ring-[#4a2d21]">
-                    <option value="Biji Kopi">Biji Kopi</option>
-                    <option value="Alternatif Susu">Alternatif Susu</option>
-                    <option value="Sirup & Rasa">Sirup & Rasa</option>
+                    <option value="Bahan Baku Minuman">Bahan Baku Minuman</option>
+                    <option value="Bahan Pendukung Minuman">Bahan Pendukung Minuman</option>
+                    <option value="Operasional">Operasional</option>
                     <option value="Kemasan">Kemasan</option>
-                    <option value="Ayam">Ayam</option>
+                    <option value="Bahan Baku Makanan">Bahan Baku Makanan</option>
                     <option value="Frozen">Frozen</option>
                     <option value="Bakmie">Bakmie</option>
                     <option value="Mie Indomie">Mie Indomie</option>
                     <option value="Buah">Buah</option>
                     <option value="Daging">Daging</option>
                     <option value="Garnis">Garnis</option>
-                    <option value="Air Mineral">Air Mineral</option>
                     <option value="Lainnya">Lainnya</option>
                   </select>
                   <span className="material-symbols-outlined absolute right-4 top-3.5 text-slate-500 pointer-events-none">expand_more</span>

@@ -34,14 +34,20 @@ export default function KdsApp() {
     const fetchKds = async () => {
       const { data } = await supabase.from('kds_orders').select('*').order('created_at', { ascending: false });
       if (data) {
-        setKdsOrders(data.map(o => ({
-          ...o, timeInSeconds: o.time_in_seconds || 0, customerName: o.customer_name
-        })));
+        setKdsOrders(data.map(o => {
+          let timeInSeconds = o.time_in_seconds || 0;
+          if (o.status !== 'done' && o.created_at) {
+            timeInSeconds = Math.max(0, Math.floor((Date.now() - new Date(o.created_at).getTime()) / 1000));
+          }
+          return {
+            ...o, timeInSeconds, customerName: o.customer_name
+          };
+        }));
       }
     };
     const fetchOrders = async () => {
       const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-      if (data) setPosOrders(data as any[]); // types might need mapping, we'll assume it matches for now
+      if (data) setPosOrders(data.map(o => ({ ...o, customerName: o.customer_name || o.customerName }) as any[]));
     };
     const fetchTables = async () => {
       const { data } = await supabase.from('tables').select('*').order('id');

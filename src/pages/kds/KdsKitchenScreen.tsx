@@ -4,8 +4,7 @@ import { useAuthStore } from '../../store/authStore';
 import { usePosStore } from '../../store/posStore';
 import { supabase } from '../../lib/supabase';
 import { KdsOrder } from '../../types';
-import { printerManager } from '../../lib/bluetoothPrinter';
-import { buildKdsTicketData } from '../../utils/escpos';
+import { getConnectedPrinter, scanAndConnect, printReceipt, buildDapurTicket } from '../../utils/bluetoothPrinter';
 
 const kdsStyles = `
   @keyframes fry-toss {
@@ -38,7 +37,7 @@ export default function KdsKitchenScreen() {
   const [clock, setClock] = useState(new Date());
   const [soundEnabled, setSoundEnabled] = useState(true);
 
-  const [isPrinterConnected, setPrinterConnected] = useState(!!printerManager.device);
+  const [isPrinterConnected, setPrinterConnectedState] = useState(!!getConnectedPrinter("Dapur"));
   const [isConnectingPrinter, setIsConnectingPrinter] = useState(false);
 
   useEffect(() => {
@@ -50,14 +49,13 @@ export default function KdsKitchenScreen() {
   const handleConnectPrinter = async () => {
     try {
       if (isPrinterConnected) {
-        printerManager.disconnect();
-        setPrinterConnected(false);
+        setPrinterConnectedState(false);
       } else {
         setIsConnectingPrinter(true);
         await new Promise(resolve => setTimeout(resolve, 600));
-        const success = await printerManager.connect();
-        if (success) {
-          setPrinterConnected(true);
+        const device = await scanAndConnect("Dapur");
+        if (device) {
+          setPrinterConnectedState(true);
         }
       }
     } catch (err) {} finally {
@@ -109,14 +107,12 @@ export default function KdsKitchenScreen() {
             qty: 1,
             notes: it.notes
           }));
-          const ticketBytes = buildKdsTicketData(
-            newestOrder.id.replace('INV-', ''),
-            'Kitchen',
-            itemsForPrint,
-            newestOrder.customerName || `Meja ${newestOrder.table || '-'}`,
-            false
-          );
-          printerManager.print(ticketBytes);
+          const ticketBytes = buildDapurTicket({
+            orderId: newestOrder.id.replace('INV-', ''),
+            tableNo: newestOrder.table || undefined,
+            items: itemsForPrint
+          });
+          printReceipt(ticketBytes, "Dapur").catch(() => {});
         }
       }
     }
@@ -130,11 +126,15 @@ export default function KdsKitchenScreen() {
   useEffect(() => {
     const interval = setInterval(() => {
       setClock(new Date());
-      setKdsOrders(prev => prev.map(o => ({
-        ...o,
-        timeInSeconds: o.timeInSeconds + 1,
-        status: o.timeInSeconds + 1 > 600 ? 'urgent' : o.timeInSeconds + 1 > 300 ? 'working' : o.status,
-      })));
+      setKdsOrders(prev => prev.map(o => {
+        if (o.status === 'done') return o;
+        const nextTime = (o.timeInSeconds || 0) + 1;
+        return {
+          ...o,
+          timeInSeconds: nextTime,
+          status: nextTime > 600 ? 'urgent' : nextTime > 300 ? 'working' : o.status,
+        };
+      }));
     }, 1000);
     return () => clearInterval(interval);
   }, [setKdsOrders]);
@@ -164,7 +164,7 @@ export default function KdsKitchenScreen() {
     if (!order) return;
     const updatedOrder = { ...order, status: 'done' as const };
     setKdsOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
-    await supabase.from('kds_orders').update({ status: 'done' }).eq('id', orderId);
+    await supabase.from('kds_orders').update({ status: 'done', time_in_seconds: order.timeInSeconds }).eq('id', orderId);
     speak("Pesanan makanan selesai");
   }, [kdsOrders, setKdsOrders, speak]);
 

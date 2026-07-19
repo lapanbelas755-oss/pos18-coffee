@@ -132,6 +132,7 @@ export interface Order {
   time: string;
   items: CartItem[];
   customerName?: string;
+  created_at?: string;
 }
 
 export interface TableData {

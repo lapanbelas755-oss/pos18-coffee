@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { CartItem, Promo } from "../../types";
 import { usePOSContext } from "../../layouts/POSLayout";
 import { usePosStore } from "../../store/posStore";
-import { printerManager } from "../../lib/bluetoothPrinter";
 import { useAuthStore } from "../../store/authStore";
 import { calculateItemUnitPrice } from "../../utils/pricing";
 
@@ -17,6 +16,7 @@ interface CartPanelProps {
   setCustomerName: (name: string) => void;
   onCheckout: (customerName?: string, promo?: Promo | null) => void;
   onSaveOrder?: (customerName?: string) => void;
+  onCancel?: () => void;
   activeTableId?: string | null;
   activeTableName?: string;
 }
@@ -30,84 +30,19 @@ export default function CartPanel({
   setCustomerName,
   onCheckout,
   onSaveOrder = () => {},
+  onCancel,
   activeTableId = null,
   activeTableName,
 }: CartPanelProps) {
   const { setSidebarOpen } = usePOSContext();
-  const { promos, triggerToast, isPrinterConnected, setPrinterConnected } = usePosStore();
+  const { promos, triggerToast, connectedPrinters } = usePosStore();
   const { currentUser } = useAuthStore();
   const navigate = useNavigate();
 
-  const [appliedPromo, setAppliedPromo] = useState<Promo | null>(null);
-  const [showPromoModal, setShowPromoModal] = useState(false);
-  const [promoCodeInput, setPromoCodeInput] = useState("");
-  const [isConnectingPrinter, setIsConnectingPrinter] = useState(false);
-
-  const handleConnectPrinter = async () => {
-    try {
-      if (isPrinterConnected) {
-        printerManager.disconnect();
-        setPrinterConnected(false);
-        triggerToast("Printer terputus", "info");
-      } else {
-        setIsConnectingPrinter(true);
-        // Delay to allow UI to render first
-        await new Promise(resolve => setTimeout(resolve, 600));
-        
-        const success = await printerManager.connect();
-        if (success) {
-          setPrinterConnected(true);
-          triggerToast("Printer Bluetooth berhasil terhubung!", "success");
-        }
-      }
-    } catch (err: any) {
-      triggerToast(err.message || "Gagal menghubungkan printer", "warning");
-    } finally {
-      setIsConnectingPrinter(false);
-    }
-  };
-
   const subtotal = cart.reduce((sum, item) => sum + (calculateItemUnitPrice(item) * item.quantity), 0);
-  
-  let discountAmount = 0;
-  if (appliedPromo) {
-    if (appliedPromo.type === "Persentase") {
-      discountAmount = (subtotal * appliedPromo.value) / 100;
-    } else if (appliedPromo.type === "Nominal") {
-      discountAmount = appliedPromo.value;
-    } else if (appliedPromo.type === "Karyawan") {
-      const drink = cart.find(item => 
-        item.product.category.toLowerCase().includes('kopi') || 
-        item.product.category.toLowerCase().includes('minuman') || 
-        item.product.category.toLowerCase().includes('tea') ||
-        item.product.category.toLowerCase().includes('signature') ||
-        item.product.category.toLowerCase().includes('coffee')
-      );
-      if (drink) {
-        discountAmount = calculateItemUnitPrice(drink);
-      }
-    }
-  }
-  
-  const total = Math.max(0, subtotal - discountAmount);
+  const total = subtotal;
 
   const [editingItem, setEditingItem] = useState<CartItem | null>(null);
-
-  const handleApplyPromo = (code: string) => {
-    const promo = promos.find(p => p.code.toUpperCase() === code.toUpperCase() && p.status === "Aktif");
-    if (!promo) {
-      triggerToast(`Kode promo ${code} tidak ditemukan atau tidak aktif`, "warning");
-      return;
-    }
-    if (promo.minPurchase && subtotal < promo.minPurchase) {
-      triggerToast(`Min. belanja untuk promo ini adalah Rp ${promo.minPurchase.toLocaleString('id-ID')}`, "warning");
-      return;
-    }
-    setAppliedPromo(promo);
-    setShowPromoModal(false);
-    setPromoCodeInput("");
-    triggerToast(`Promo ${promo.code} berhasil dipasang`, "success");
-  };
 
   const handleQtyChange = (itemId: string, delta: number) => {
     setCart(prev => prev
@@ -143,25 +78,19 @@ export default function CartPanel({
           <img src="/logo.png" alt="POS18 Logo" className="w-8 h-8 object-contain rounded-md" />
           <span className="font-bold text-sm tracking-tight">POS18 Coffee</span>
         </div>
-        
         <div className="flex items-center gap-2">
           <button
-            onClick={handleConnectPrinter}
-            title={isPrinterConnected ? "Putuskan Printer" : "Hubungkan Printer Bluetooth"}
-            className={`px-2 py-0.5 rounded-full flex items-center justify-center gap-1 font-bold text-[10px] transition-colors ${
-              isPrinterConnected 
-                ? "bg-green-100 text-green-700 hover:bg-green-200" 
-                : "bg-white/20 text-white hover:bg-white/30"
-            }`}
+            onClick={() => navigate("/pos/shift")}
+            className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-xs font-bold transition-colors"
           >
-            <span className="material-symbols-outlined text-[12px]">print</span>
-            <span>{isPrinterConnected ? "Printer" : "Konek"}</span>
+            <span className="material-symbols-outlined text-[14px]">schedule</span>
+            Shift
           </button>
-          
-          <div className="flex items-center gap-1 bg-green-500/20 px-2 py-1 rounded-full border border-green-500/50">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-[10px] font-bold text-green-300">Online</span>
-          </div>
+          {connectedPrinters.kasir && (
+            <div className="flex items-center gap-1 bg-green-500/20 px-2 py-1 rounded-full border border-green-500/50" title="Printer Kasir Terhubung">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -213,10 +142,10 @@ export default function CartPanel({
           <span className="text-xs font-bold text-slate-500">{cart.length} item</span>
           {cart.length > 0 && (
             <button
-              onClick={handleClearCart}
-              className="text-[10px] text-red-400 hover:text-red-600 font-bold px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors"
+              onClick={() => onCancel?.()}
+              className="text-[10px] bg-red-100 text-red-600 hover:bg-red-500 hover:text-white font-bold px-3 py-1 rounded-md transition-colors border border-red-200 hover:border-red-500 shadow-sm ml-2"
             >
-              Hapus Semua
+              Batal
             </button>
           )}
         </div>
@@ -304,15 +233,6 @@ export default function CartPanel({
             <span>Subtotal</span>
             <span>Rp {subtotal.toLocaleString("id-ID")}</span>
           </div>
-          {appliedPromo && (
-            <div className="flex justify-between items-center text-sm font-bold text-emerald-600">
-              <div className="flex items-center gap-1">
-                <span>Diskon ({appliedPromo.code})</span>
-                <button onClick={() => setAppliedPromo(null)} className="text-red-500 hover:text-red-700 ml-1"><span className="material-symbols-outlined text-[14px]">close</span></button>
-              </div>
-              <span>- Rp {discountAmount.toLocaleString("id-ID")}</span>
-            </div>
-          )}
           <div className="flex justify-between items-center pt-2 border-t border-slate-100 mt-1">
             <span className="text-sm font-bold text-slate-700">Total Pembayaran</span>
             <span className="text-xl font-extrabold text-[#4d3227]">
@@ -330,79 +250,22 @@ export default function CartPanel({
               Simpan Pesanan Meja
             </button>
           )}
-          <div className="flex gap-2">
-            <button onClick={() => setShowPromoModal(true)} className="flex-1 py-3 bg-white border-2 border-slate-200 rounded-xl flex items-center justify-center gap-1.5 text-slate-600 font-bold hover:bg-slate-50 transition-colors text-sm">
-              <span className="material-symbols-outlined text-[18px]">local_offer</span>
-              Kupon
-            </button>
-            <button
-              onClick={() => {
-                if (cart.length === 0) return;
-                onCheckout(customerName, appliedPromo);
-              }}
-              disabled={cart.length === 0}
-              className={`flex-1 py-3 rounded-xl font-bold uppercase tracking-wide transition-all text-sm ${
-                cart.length > 0
-                  ? "bg-primary text-white hover:brightness-110 active:scale-95 shadow-lg shadow-primary/30 cursor-pointer"
-                  : "bg-slate-200 text-slate-400 cursor-not-allowed"
-              }`}
-            >
-              Bayar Sekarang
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              if (cart.length === 0) return;
+              onCheckout(customerName);
+            }}
+            disabled={cart.length === 0}
+            className={`w-full py-3 rounded-xl font-bold uppercase tracking-wide transition-all text-sm ${
+              cart.length > 0
+                ? "bg-primary text-white hover:brightness-110 active:scale-95 shadow-lg shadow-primary/30 cursor-pointer"
+                : "bg-slate-200 text-slate-400 cursor-not-allowed"
+            }`}
+          >
+            Bayar Sekarang
+          </button>
         </div>
       </div>
-
-      {/* Modal Kupon */}
-      {showPromoModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col">
-            <div className="bg-[#4d3227] text-white p-5 flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-extrabold">Pakai Promo / Kupon</h2>
-              </div>
-              <button onClick={() => setShowPromoModal(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            
-            <div className="p-5 space-y-4">
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  value={promoCodeInput}
-                  onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
-                  placeholder="Masukkan Kode Kupon" 
-                  className="flex-1 border border-slate-300 rounded-xl px-4 py-2 font-bold uppercase focus:border-[#4d3227] outline-none"
-                />
-                <button 
-                  onClick={() => handleApplyPromo(promoCodeInput)}
-                  className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
-                >
-                  Terapkan
-                </button>
-              </div>
-
-              {promos.filter(p => p.status === "Aktif" && p.type !== "Karyawan").length > 0 && (
-                <div className="mt-4 border-t border-slate-100 pt-4">
-                  <p className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider">Promo Tersedia</p>
-                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
-                    {promos.filter(p => p.status === "Aktif" && p.type !== "Karyawan").map(promo => (
-                      <div key={promo.id} onClick={() => handleApplyPromo(promo.code)} className="border border-slate-200 p-3 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 cursor-pointer transition-colors flex justify-between items-center group">
-                        <div>
-                          <p className="font-bold text-slate-800 text-sm">{promo.code}</p>
-                          <p className="text-xs text-slate-500 font-medium">{promo.title}</p>
-                        </div>
-                        <span className="material-symbols-outlined text-slate-300 group-hover:text-emerald-500">chevron_right</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Edit Item Modal */}
       {editingItem && (
@@ -504,33 +367,6 @@ export default function CartPanel({
         </div>
       )}
 
-      {/* Custom Bluetooth Connecting Modal Guide */}
-      {isConnectingPrinter && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-xs shadow-2xl text-center">
-            {/* Spinning coffee radar animation */}
-            <div className="relative w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-              {/* Radar rings */}
-              <div className="absolute inset-0 rounded-full border-4 border-amber-800/10 animate-ping duration-1000"></div>
-              <div className="absolute inset-2 rounded-full border-4 border-amber-800/20 animate-ping duration-1000 delay-300"></div>
-              {/* Center icon */}
-              <div className="w-14 h-14 bg-amber-800/10 text-amber-800 rounded-2xl flex items-center justify-center shadow-inner relative z-10">
-                <span className="material-symbols-outlined text-3xl animate-pulse">print_connect</span>
-              </div>
-            </div>
-            
-            <h3 className="text-slate-800 font-black text-base">Menghubungkan Printer</h3>
-            <p className="text-slate-500 text-[10px] mt-2 px-2 leading-relaxed">
-              Sedang memindai perangkat Bluetooth...
-            </p>
-            
-            <div className="mt-4 p-3 bg-amber-50 border border-amber-200/50 rounded-xl text-[10px] text-amber-800 font-bold leading-relaxed text-left flex items-start gap-2">
-              <span className="material-symbols-outlined text-base text-amber-700 shrink-0">info</span>
-              <span>Silakan pilih nama printer Bluetooth Anda (contoh: <strong>RPP02</strong>) pada jendela browser yang muncul di atas layar untuk menyelesaikan sambungan.</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

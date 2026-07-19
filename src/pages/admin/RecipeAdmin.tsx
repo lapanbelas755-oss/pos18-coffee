@@ -73,6 +73,10 @@ export default function RecipeAdmin({ recipes, setRecipes, stockItems, onNotify 
       const { error } = await supabase.from('recipes').insert([dbPayload]);
       if (error) { onNotify("Gagal menambahkan resep!", "warning"); return; }
     }
+
+    // Sync price to products table
+    await supabase.from('products').update({ price: savedRecipe.sellPrice }).eq('name', savedRecipe.name);
+
     onNotify(editingRecipe ? "Resep berhasil diperbarui!" : "Resep baru berhasil ditambahkan!", "success");
     setIsFormOpen(false);
     if (selected && selected.id === savedRecipe.id) setSelected(savedRecipe);

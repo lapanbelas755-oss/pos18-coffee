@@ -177,6 +177,13 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
       return;
     }
 
+    // Sync price and recalculate margin to recipes table
+    const recipeMatch = recipes.find(r => r.name.toLowerCase() === dbPayload.name.toLowerCase());
+    if (recipeMatch) {
+      const newMargin = dbPayload.price > 0 ? Math.round(((dbPayload.price - recipeMatch.cogs) / dbPayload.price) * 100) : 0;
+      await supabase.from('recipes').update({ sell_price: dbPayload.price, profit_margin: newMargin }).eq('id', recipeMatch.id);
+    }
+
     setIsEditModalOpen(false);
     onNotify("Item berhasil diupdate!", "success");
     setEditingItem(null);

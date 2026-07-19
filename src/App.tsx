@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { PosProvider } from './store/posStore';
 import FullscreenToggle from './components/common/FullscreenToggle';
+import ScheduledTaskRunner from './components/ScheduledTaskRunner';
 
 // Lazy Loading Modules
 const PosApp = lazy(() => import('./pages/pos/PosApp'));
@@ -111,6 +112,7 @@ function App() {
         <Route path="*" element={<Navigate to="/pos" replace />} />
       </Routes>
       <FullscreenToggle />
+      <ScheduledTaskRunner />
     </Suspense>
   );
 }

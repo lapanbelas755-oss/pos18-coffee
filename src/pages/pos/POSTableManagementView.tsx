@@ -56,7 +56,11 @@ export default function POSTableManagementView({ tables, setTables, setActiveTab
       setTables(prev => prev.map(t => {
         if (t.id === selectedTable.id || t.linkedTo === selectedTable.id) {
           const updated = { ...t, status: "Kosong" as const, current: 0, cart: [], customerName: undefined, time: "", linkedTo: undefined };
-          supabase.from('tables').update(updated).eq('id', t.id).then();
+          supabase.from('tables').update({
+            cart: updated.cart,
+            status: updated.status,
+            customer_name: updated.customerName || null
+          }).eq('id', t.id).then();
           return updated;
         }
         return t;
@@ -142,7 +146,8 @@ export default function POSTableManagementView({ tables, setTables, setActiveTab
       }).eq('id', newTarget.id).then();
       
       supabase.from('tables').update({ 
-        cart: newSource.cart, current: newSource.current, status: newSource.status, linkedTo: newSource.linkedTo, customerName: newSource.customerName, time: newSource.time 
+        cart: newSource.cart, current: newSource.current, status: newSource.status, 
+        linked_to: newSource.linkedTo || null, customer_name: newSource.customerName || null, time: newSource.time 
       }).eq('id', newSource.id).then();
 
       // Merge logic: all items from source move to target

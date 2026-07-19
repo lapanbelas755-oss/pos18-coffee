@@ -43,18 +43,19 @@ export default function ScanOpname() {
   const baristaCats = [
     "COFFEE", "COFFEE MILK", "MILK", "TEA", "SIGNATURE", "BIJI KOPI", "SUSU", 
     "SYRUP", "POWDER", "BUAH", "GARNIS", "ALTERNATIF SUSU", "SIRUP & RASA", 
-    "KEMASAN", "AIR MINERAL"
+    "KEMASAN", "AIR MINERAL", "BAHAN BAKU MINUMAN", "BAHAN PENDUKUNG MINUMAN"
   ];
+  const waitersCats = ["OPERASIONAL"];
 
   useEffect(() => {
     if (currentUser) {
       const role = currentUser.role.toLowerCase();
       const isAdmin = role === "admin" || role === "manajer";
-      const hasAccess = isAdmin || (isKitchen && role === "chef") || (isBarista && role === "barista");
+      const hasAccess = isAdmin || (isKitchen && role === "chef") || (isBarista && role === "barista") || (isWaiters && (role.includes("waiter") || role === "pelayan"));
       
       if (!hasAccess) {
         logout();
-        setError(`Akses ditolak! ${currentUser.role} tidak dapat mengakses Opname ${isKitchen ? 'Dapur' : 'Barista'}.`);
+        setError(`Akses ditolak! ${currentUser.role} tidak dapat mengakses Opname ${isKitchen ? 'Dapur' : isBarista ? 'Barista' : 'Waiters'}.`);
       } else {
         loadData();
       }
@@ -79,7 +80,7 @@ export default function ScanOpname() {
 
   const loadData = async () => {
     setLoading(true);
-    const validCats = isKitchen ? kitchenCats : (isBarista ? baristaCats : []);
+    const validCats = isKitchen ? kitchenCats : (isBarista ? baristaCats : (isWaiters ? waitersCats : []));
     
     // Fetch stock items (Bahan Baku)
     const { data: stockData } = await supabase.from('stock_items').select('*');
@@ -206,7 +207,7 @@ export default function ScanOpname() {
 
       // Send telegram notification if there are differences
       if (telegramDiffs.length > 0) {
-        const deptLabel = isKitchen ? "Dapur" : "Barista";
+        const deptLabel = isKitchen ? "Dapur" : isBarista ? "Barista" : "Waiters";
         const dateStr = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
         const telegramText = 
           `<b>🔔 LAPORAN SELISIH STOCK OPNAME [${deptLabel.toUpperCase()}]</b>\n` +
@@ -229,7 +230,7 @@ export default function ScanOpname() {
     }
   };
 
-  if (!isKitchen && !isBarista) {
+  if (!isKitchen && !isBarista && !isWaiters) {
     return <div className="p-8 text-center text-red-500 font-bold">Departemen tidak valid.</div>;
   }
 
@@ -238,7 +239,7 @@ export default function ScanOpname() {
       <div className="min-h-screen bg-[#faf6f3] flex flex-col items-center justify-center p-4">
         <div className="bg-white p-6 rounded-2xl shadow-sm w-full max-w-sm">
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-black text-[#4a2d21]">Opname {isKitchen ? "Dapur" : "Bar"}</h1>
+            <h1 className="text-2xl font-black text-[#4a2d21]">Opname {isKitchen ? "Dapur" : isBarista ? "Bar" : "Waiters"}</h1>
             <p className="text-sm text-slate-500">Silakan masukkan PIN Anda</p>
           </div>
           

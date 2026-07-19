@@ -21,14 +21,17 @@ type ConnectionStatus = "disconnected" | "scanning" | "connecting" | "connected"
 
 export default function POSSettingsView({ onNotify, products = [] }: POSSettingsViewProps) {
   const { sidebarOpen, setSidebarOpen } = usePOSContext();
-  const { kdsRouting, setKdsRouting } = usePosStore();
+  const { kdsRouting, setKdsRouting, setPrinterConnected } = usePosStore();
   const [activeTab, setActiveTab] = useState("Printer & Struk");
   const [printerMode, setPrinterMode] = useState<PrinterMode>("Kasir");
 
   // --- Bluetooth State ---
-  const [btStatus, setBtStatus] = useState<ConnectionStatus>("disconnected");
-  const [printerDevice, setPrinterDevice] = useState<PrinterDevice | null>(null);
-  const [btError, setBtError] = useState<string | null>(null);
+  const [connectionStates, setConnectionStates] = useState<Record<string, { status: ConnectionStatus, error: string | null }>>({
+    Kasir: { status: "disconnected", error: null },
+    Dapur: { status: "disconnected", error: null },
+    Barista: { status: "disconnected", error: null },
+  });
+
   const [isPrinting, setIsPrinting] = useState(false);
   const [btSupported, setBtSupported] = useState(true);
 
@@ -56,47 +59,62 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
     localStorage.setItem("pos_receipt_settings", JSON.stringify(next));
   };
 
+  const [storeProfile, setStoreProfile] = useState(() => {
+    const saved = localStorage.getItem("pos_store_profile");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return {
+      namaToko: "POS18 Coffee",
+      nomorTelepon: "0812-4428-1199",
+      alamatLengkap: "Jl. Sudirman No.18, Jakarta Selatan",
+    };
+  });
+
+
   useEffect(() => {
     if (!navigator.bluetooth) setBtSupported(false);
-    if (isConnected()) {
-      const dev = getConnectedPrinter();
-      setPrinterDevice(dev);
-      setBtStatus("connected");
-    }
+    setConnectionStates(prev => {
+      const next = { ...prev };
+      ["Kasir", "Dapur", "Barista"].forEach(role => {
+        if (isConnected(role)) {
+          next[role] = { status: "connected", error: null };
+        }
+      });
+      return next;
+    });
   }, []);
 
-  const handleConnect = useCallback(async () => {
-    setBtError(null);
-    setBtStatus("scanning");
+  const handleConnect = useCallback(async (role: string) => {
+    setConnectionStates(prev => ({ ...prev, [role]: { status: "scanning", error: null } }));
     try {
-      const dev = await scanAndConnect();
-      setPrinterDevice(dev);
-      setBtStatus("connected");
-      onNotify(`✅ Printer "${dev.name}" berhasil terhubung!`, "success");
+      const dev = await scanAndConnect(role);
+      setConnectionStates(prev => ({ ...prev, [role]: { status: "connected", error: null } }));
+      setPrinterConnected(role.toLowerCase() as any, true);
+      onNotify(`✅ Printer "${dev.name}" berhasil terhubung sebagai ${role}!`, "success");
     } catch (err: any) {
-      // User cancelled or real error
       if (err?.message?.includes("cancelled") || err?.code === 0 || err?.name === "NotFoundError") {
-        setBtStatus("disconnected");
+        setConnectionStates(prev => ({ ...prev, [role]: { status: "disconnected", error: null } }));
       } else {
-        setBtError(err?.message ?? "Koneksi gagal");
-        setBtStatus("error");
+        setConnectionStates(prev => ({ ...prev, [role]: { status: "error", error: err?.message ?? "Koneksi gagal" } }));
         onNotify(`Gagal: ${err?.message}`, "warning");
       }
     }
-  }, [onNotify]);
+  }, [onNotify, setPrinterConnected]);
 
-  const handleDisconnect = useCallback(() => {
-    disconnectPrinter();
-    setPrinterDevice(null);
-    setBtStatus("disconnected");
-    setBtError(null);
-    onNotify("Printer diputus", "info");
-  }, [onNotify]);
+  const handleDisconnect = useCallback((role: string) => {
+    disconnectPrinter(role);
+    setConnectionStates(prev => ({ ...prev, [role]: { status: "disconnected", error: null } }));
+    setPrinterConnected(role.toLowerCase() as any, false);
+    onNotify(`Printer ${role} diputus`, "info");
+  }, [onNotify, setPrinterConnected]);
 
-  const handleTestPrint = useCallback(async () => {
+  const handleTestPrint = useCallback(async (role: string) => {
     setIsPrinting(true);
     try {
-      await testPrint();
+      await testPrint(role);
       onNotify("✅ Test print berhasil!", "success");
     } catch (err: any) {
       onNotify(`Gagal cetak: ${err?.message}`, "warning");
@@ -106,6 +124,9 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
   }, [onNotify]);
 
   const handleSave = (section: string) => {
+    if (section === "Profil Toko") {
+      localStorage.setItem("pos_store_profile", JSON.stringify(storeProfile));
+    }
     onNotify(`Pengaturan ${section} berhasil disimpan!`, "success");
   };
 
@@ -131,6 +152,12 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
     connected:    { color: "text-emerald-600 bg-emerald-50 border-emerald-200",icon: "bluetooth_connected", label: "Terhubung" },
     error:        { color: "text-red-600   bg-red-50    border-red-200",        icon: "error",              label: "Koneksi Gagal" },
   };
+  
+  const currentConnState = connectionStates[printerMode];
+  const btStatus = currentConnState?.status || "disconnected";
+  const btError = currentConnState?.error;
+  const currentPrinterDev = getConnectedPrinter(printerMode);
+  
   const st = statusConfig[btStatus];
 
   return (
@@ -188,7 +215,7 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
                   <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center gap-3">
                     <span className="material-symbols-outlined text-[#4d3227]">bluetooth</span>
                     <div>
-                      <h2 className="font-bold text-base text-slate-800">Koneksi Printer Bluetooth</h2>
+                      <h2 className="font-bold text-base text-slate-800">Koneksi Printer {printerMode}</h2>
                       <p className="text-xs text-slate-500">Web Bluetooth API · Kompatibel ESC/POS (Chrome/Edge)</p>
                     </div>
                   </div>
@@ -212,8 +239,8 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
                       </div>
                       <div className="flex-1">
                         <p className="font-bold text-sm">{st.label}</p>
-                        {btStatus === "connected" && printerDevice && (
-                          <p className="text-xs mt-0.5">{printerDevice.name}</p>
+                        {btStatus === "connected" && currentPrinterDev && (
+                          <p className="text-xs mt-0.5">{currentPrinterDev.name}</p>
                         )}
                         {btStatus === "error" && btError && (
                           <p className="text-xs mt-0.5 text-red-500">{btError}</p>
@@ -226,7 +253,7 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
                       {btStatus === "connected" ? (
                         <div className="flex gap-2">
                           <button
-                            onClick={handleTestPrint}
+                            onClick={() => handleTestPrint(printerMode)}
                             disabled={isPrinting}
                             className="text-xs font-bold px-3 py-1.5 bg-white text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-50 transition-colors disabled:opacity-50 flex items-center gap-1"
                           >
@@ -238,7 +265,7 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
                             Test Print
                           </button>
                           <button
-                            onClick={handleDisconnect}
+                            onClick={() => handleDisconnect(printerMode)}
                             className="text-xs font-bold px-3 py-1.5 bg-white text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
                           >
                             Putuskan
@@ -246,7 +273,7 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
                         </div>
                       ) : (
                         <button
-                          onClick={handleConnect}
+                          onClick={() => handleConnect(printerMode)}
                           disabled={!btSupported || btStatus === "scanning"}
                           className="text-xs font-bold px-4 py-2 bg-[#4d3227] text-white rounded-lg hover:bg-[#3a251d] transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0"
                         >
@@ -339,7 +366,7 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
                       <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
                         {btStatus === "connected" && (
                           <button
-                            onClick={handleTestPrint}
+                            onClick={() => handleTestPrint(printerMode)}
                             disabled={isPrinting}
                             className="flex items-center gap-2 text-sm font-bold px-4 py-2.5 border border-[#4d3227] text-[#4d3227] rounded-xl hover:bg-orange-50 transition-colors disabled:opacity-50"
                           >
@@ -379,9 +406,9 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
                             {tplKasir.showLogo && (
                               <div className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center font-black text-base mx-auto mb-2">18</div>
                             )}
-                            <p className="font-bold text-[11px]">POS18 COFFEE</p>
-                            <p className="text-slate-500 text-[8px]">Jl. Sudirman No.18, Jakarta</p>
-                            <p className="text-slate-500 text-[8px]">0812-4428-1199</p>
+                            <p className="font-bold text-[11px] uppercase">{storeProfile.namaToko}</p>
+                            <p className="text-slate-500 text-[8px]">{storeProfile.alamatLengkap.substring(0, 30)}{storeProfile.alamatLengkap.length > 30 ? '...' : ''}</p>
+                            <p className="text-slate-500 text-[8px]">{storeProfile.nomorTelepon}</p>
                             <div className="border-b border-dashed border-slate-400 my-2"></div>
                             <p className="text-left text-[8px]">Kasir : Budi</p>
                             <p className="text-left text-[8px]">Tgl   : 10 Jul 26 14:30</p>
@@ -495,15 +522,15 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Nama Toko</label>
-                      <input type="text" defaultValue="POS18 Coffee" className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:border-[#4d3227] focus:ring-1 focus:ring-[#4d3227] outline-none" />
+                      <input type="text" value={storeProfile.namaToko} onChange={(e) => setStoreProfile({...storeProfile, namaToko: e.target.value})} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:border-[#4d3227] focus:ring-1 focus:ring-[#4d3227] outline-none" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Nomor Telepon</label>
-                      <input type="text" defaultValue="0812-4428-1199" className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:border-[#4d3227] focus:ring-1 focus:ring-[#4d3227] outline-none" />
+                      <input type="text" value={storeProfile.nomorTelepon} onChange={(e) => setStoreProfile({...storeProfile, nomorTelepon: e.target.value})} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:border-[#4d3227] focus:ring-1 focus:ring-[#4d3227] outline-none" />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Alamat Lengkap</label>
-                      <textarea rows={3} defaultValue="Jl. Sudirman No.18, Jakarta Selatan" className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:border-[#4d3227] focus:ring-1 focus:ring-[#4d3227] outline-none"></textarea>
+                      <textarea rows={3} value={storeProfile.alamatLengkap} onChange={(e) => setStoreProfile({...storeProfile, alamatLengkap: e.target.value})} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:border-[#4d3227] focus:ring-1 focus:ring-[#4d3227] outline-none"></textarea>
                     </div>
                   </div>
                   <div className="pt-4 flex justify-end">

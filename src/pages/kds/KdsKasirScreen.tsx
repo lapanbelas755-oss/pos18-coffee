@@ -99,7 +99,7 @@ const StatusBadge = ({
 
 export default function KdsKasirScreen() {
   const { currentUser, logout } = useAuthStore();
-  const { posOrders, kdsOrders, tables } = usePosStore();
+  const { posOrders, kdsOrders, setKdsOrders, tables } = usePosStore();
   const navigate = useNavigate();
 
   // Create a stable mapping of real orders from Supabase
@@ -107,7 +107,8 @@ export default function KdsKasirScreen() {
     const kasirTickets = kdsOrders.filter(k => k.station === 'kasir');
     
     return kasirTickets.map(kdsKasir => {
-      const ticketId = kdsKasir.id.replace('-KSR', '');
+      // Extract base ticket ID (e.g. T-001 from T-001-KSR or T-001-KSR-8805)
+      const ticketId = kdsKasir.id.split('-KSR')[0]; 
       const po = posOrders.find(p => 
         p.queue === ticketId || 
         p.id === ticketId || 
@@ -117,16 +118,32 @@ export default function KdsKasirScreen() {
       
       let hasBarista = true;
       let hasKitchen = true;
-      let paymentStatus = 'Paid';
+      let paymentStatus = 'Paid'; // Default if not found
       
       if (po) {
-        hasBarista = po.items.some((i: any) => ["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE", "MILK"].includes((i.product?.category || i.category || "").toUpperCase()));
-        hasKitchen = po.items.some((i: any) => !["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE", "MILK"].includes((i.product?.category || i.category || "").toUpperCase()));
-        paymentStatus = po.payment === 'Split' || !po.payment ? 'Unpaid' : 'Paid';
+        hasBarista = po.items?.some((i: any) => ["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE", "MILK"].includes((i.product?.category || i.category || "").toUpperCase())) ?? true;
+        hasKitchen = po.items?.some((i: any) => !["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE", "MILK"].includes((i.product?.category || i.category || "").toUpperCase())) ?? true;
+        
+        const stat = (po.status || "").toLowerCase();
+        const pay = (po.payment || "").toLowerCase();
+        if (stat === 'unpaid' || pay === 'unpaid' || pay === 'split' || pay === '') {
+          paymentStatus = 'Unpaid';
+        } else {
+          paymentStatus = 'Paid';
+        }
+      } else {
+        // Fallback: If pos order is somehow not synced yet, try to guess from KDS status if possible, 
+        // but we'll default to Unpaid if it's a fresh order just to be safe.
+        if (kdsKasir.status === 'incoming' || kdsKasir.status === 'working') {
+          paymentStatus = 'Unpaid'; // Assume unpaid if POS hasn't synced and order is still incoming
+        }
       }
 
-      const kdsBarista = kdsOrders.find(k => k.id === `${ticketId}-B`);
-      const kdsKitchen = kdsOrders.find(k => k.id === `${ticketId}-K`);
+      const baristaId = kdsKasir.id.replace('-KSR', '-B');
+      const kitchenId = kdsKasir.id.replace('-KSR', '-K');
+
+      const kdsBarista = kdsOrders.find(k => k.id === baristaId);
+      const kdsKitchen = kdsOrders.find(k => k.id === kitchenId);
 
       const baristaStatus = !hasBarista 
         ? 'none' 
@@ -154,9 +171,13 @@ export default function KdsKasirScreen() {
         tableDisplay = rawTable;
       }
 
+      const displayQueue = ticketId.startsWith('T') && ticketId.includes('-') && ticketId.length > 8
+        ? `T-${ticketId.split('-')[1]}`
+        : ticketId.startsWith('T') ? ticketId : `T-${ticketId}`;
+
       return {
         id: kdsKasir.id,
-        queue: ticketId,
+        queue: displayQueue,
         table: tableDisplay,
         type: kdsKasir.type as OrderType,
         customerName: kdsKasir.customerName || po?.customerName,
@@ -184,9 +205,16 @@ export default function KdsKasirScreen() {
   useEffect(() => {
     const iv = setInterval(() => {
       setClock(new Date());
+      setKdsOrders(prev => prev.map(o => {
+        if (o.status === 'done') return o;
+        return {
+          ...o,
+          timeInSeconds: (o.timeInSeconds || 0) + 1
+        };
+      }));
     }, 1000);
     return () => clearInterval(iv);
-  }, []);
+  }, [setKdsOrders]);
 
   const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -323,7 +351,7 @@ export default function KdsKasirScreen() {
             </thead>
             <tbody>
               {filtered.sort((a, b) => b.timeInSeconds - a.timeInSeconds).map((order, idx) => {
-                const isReady = order.baristaStatus === 'done' && (order.kitchenStatus === 'done' || order.kitchenStatus === 'none');
+                const isReady = (order.baristaStatus === 'done' || order.baristaStatus === 'none') && (order.kitchenStatus === 'done' || order.kitchenStatus === 'none');
                 const isCalled = calledOrders.has(order.id);
                 const isLate = order.timeInSeconds > 600;
 

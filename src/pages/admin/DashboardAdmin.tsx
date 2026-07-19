@@ -106,8 +106,7 @@ export default function DashboardAdmin({ transactions, products, recipes = [], p
   const ordersData = useMemo(() => {
     const map: Record<string, number> = {};
     filteredOrders.forEach(o => { map[o.type] = (map[o.type] || 0) + 1; });
-    const total = Object.values(map).reduce((a,b) => a+b, 0) || 1;
-    return Object.entries(map).map(([name, count], i) => ({ name, value: Math.round((count/total)*100), count, color: CHART_COLORS[i+3] }));
+    return Object.entries(map).map(([name, count], i) => ({ name, value: count, count, color: CHART_COLORS[i+3] }));
   }, [filteredOrders]);
 
   // Computed — Category Distribution
@@ -117,16 +116,14 @@ export default function DashboardAdmin({ transactions, products, recipes = [], p
       const cat = i.product.category || 'Lainnya';
       map[cat] = (map[cat] || 0) + i.quantity;
     }));
-    const total = Object.values(map).reduce((a,b) => a+b, 0) || 1;
-    return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([name, value], i) => ({ name, value: Math.round((value/total)*100), color: CHART_COLORS[i] }));
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([name, value], i) => ({ name, value, color: CHART_COLORS[i] }));
   }, [filteredOrders]);
 
   // Computed — Tenders (payment method)
   const tendersData = useMemo(() => {
     const map: Record<string, number> = {};
     filteredOrders.forEach(o => { map[o.payment] = (map[o.payment] || 0) + o.total; });
-    const total = Object.values(map).reduce((a,b) => a+b, 0) || 1;
-    return Object.entries(map).map(([name, value], i) => ({ name, value: Math.round((value/total)*100), color: CHART_COLORS[i+2] }));
+    return Object.entries(map).map(([name, value], i) => ({ name, value, color: CHART_COLORS[i+2] }));
   }, [filteredOrders]);
 
   const totalOrderCount = filteredOrders.length;
@@ -362,7 +359,7 @@ export default function DashboardAdmin({ transactions, products, recipes = [], p
                 <Pie data={bestSellingData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" stroke="none">
                   {bestSellingData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                 </Pie>
-                <Tooltip formatter={(val) => `${val}%`} />
+                <Tooltip formatter={(val) => `${val} terjual`} />
                 <Legend content={renderCustomLegend} layout="vertical" verticalAlign="middle" align="right" />
               </PieChart>
             </ResponsiveContainer>
@@ -385,13 +382,13 @@ export default function DashboardAdmin({ transactions, products, recipes = [], p
                   const y = cy + radius * Math.sin(-midAngle * RADIAN);
                   return (
                     <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize="12" fontWeight="bold">
-                      {`${value}%`}
+                      {`${value}`}
                     </text>
                   );
                 }} labelLine={false}>
                   {ordersData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                 </Pie>
-                <Tooltip formatter={(val) => `${val}%`} />
+                <Tooltip formatter={(val) => `${val} order`} />
               </PieChart>
             </ResponsiveContainer>
             <div className="flex flex-col ml-4">
@@ -421,7 +418,7 @@ export default function DashboardAdmin({ transactions, products, recipes = [], p
                 <Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" stroke="none">
                   {categoryData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                 </Pie>
-                <Tooltip formatter={(val) => `${val}%`} />
+                <Tooltip formatter={(val) => `${val} item`} />
                 <Legend content={renderCustomLegend} layout="vertical" verticalAlign="middle" align="right" />
               </PieChart>
             </ResponsiveContainer>
@@ -449,7 +446,7 @@ export default function DashboardAdmin({ transactions, products, recipes = [], p
                 <Pie data={tendersData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" stroke="none">
                   {tendersData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                 </Pie>
-                <Tooltip formatter={(val) => `${val}%`} />
+                <Tooltip formatter={(val: number) => `Rp ${val.toLocaleString("id-ID")}`} />
                 <Legend content={renderCustomLegend} layout="vertical" verticalAlign="middle" align="right" />
               </PieChart>
             </ResponsiveContainer>

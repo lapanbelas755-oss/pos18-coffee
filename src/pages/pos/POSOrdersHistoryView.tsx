@@ -3,6 +3,7 @@ import { Order, TableData } from "../../types";
 import { supabase } from "../../lib/supabase";
 import ManagerAuthModal from "../../components/pos/ManagerAuthModal";
 import PaymentModal from "../../components/pos/PaymentModal";
+import { sendTelegramMessage } from "../../lib/telegram";
 
 interface POSOrdersHistoryViewProps {
   posOrders: Order[];
@@ -16,16 +17,23 @@ interface POSOrdersHistoryViewProps {
 export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, setTables, onNotify, onReprint }: POSOrdersHistoryViewProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Semua Status");
+  const [dateFilter, setDateFilter] = useState("Hari Ini");
   const [orderToVoid, setOrderToVoid] = useState<string | null>(null);
 
   const filteredOrders = useMemo(() => {
+    // Determine today's date string in the same format as o.time ("17 Jul 2026")
+    const todayStr = new Date().toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+    
     return posOrders.filter(o => {
       if (o.type === "Online" && o.status === "Ready") return false;
+      
       const matchSearch = o.id.toLowerCase().includes(search.toLowerCase()) || (o.table && o.table.toLowerCase().includes(search.toLowerCase()));
       const matchStatus = statusFilter === "Semua Status" || o.status === statusFilter;
-      return matchSearch && matchStatus;
+      const matchDate = dateFilter === "Semua Waktu" || o.time.includes(todayStr);
+      
+      return matchSearch && matchStatus && matchDate;
     });
-  }, [posOrders, search, statusFilter]);
+  }, [posOrders, search, statusFilter, dateFilter]);
 
   const [orderToPay, setOrderToPay] = useState<Order | null>(null);
 
@@ -41,10 +49,19 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
     setPosOrders(prev => prev.map(o => o.id === orderToPay.id ? { ...o, status: "Selesai", payment: method, amountGiven, change } : o));
 
     if (orderToPay.table) {
-      setTables(prev => prev.map(t => t.id === orderToPay.table || t.name === orderToPay.table ? { ...t, status: "Kosong", cart: [], current: 0 } : t));
+      setTables(prev => prev.map(t => {
+        if (t.id === orderToPay.table || t.name === orderToPay.table) {
+          const updated: TableData = { ...t, status: "Kosong", cart: [], current: 0, customerName: undefined, linkedTo: undefined, time: "" };
+          supabase.from('tables').update({
+            status: "Kosong", cart: [], current: 0, customer_name: null, linked_to: null, time: ""
+          }).eq('id', t.id).then();
+          return updated;
+        }
+        return t;
+      }));
     }
     
-    supabase.from('orders').update({ status: "Selesai", payment: method, amountGiven, change }).eq('id', orderToPay.id).then();
+    supabase.from('orders').update({ status: "Selesai", payment: method }).eq('id', orderToPay.id).then();
 
     onNotify(`Pembayaran pesanan ${orderToPay.id} berhasil diproses dengan ${method}.`, "success");
     setOrderToPay(null);
@@ -59,10 +76,24 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
     setPosOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: "Batal" } : o));
 
     if (order.table) {
-      setTables(prev => prev.map(t => t.id === order.table || t.name === order.table ? { ...t, status: "Kosong", cart: [], current: 0 } : t));
+      setTables(prev => prev.map(t => {
+        if (t.id === order.table || t.name === order.table) {
+          const updated: TableData = { ...t, status: "Kosong", cart: [], current: 0, customerName: undefined, linkedTo: undefined, time: "" };
+          supabase.from('tables').update({
+            status: "Kosong", cart: [], current: 0, customer_name: null, linked_to: null, time: ""
+          }).eq('id', t.id).then();
+          return updated;
+        }
+        return t;
+      }));
     }
 
     onNotify(`Pesanan ${orderId} telah di-Void.`, "warning");
+    
+    // Telegram Notification
+    const telegramMsg = `🚫 <b>TRANSAKSI VOID</b> 🚫\n\n🆔 <b>Order ID:</b> ${orderId}\n👤 <b>Kasir:</b> ${order.cashier_name || 'System'}\n💵 <b>Total:</b> Rp ${order.total.toLocaleString('id-ID')}\n📝 <b>Catatan:</b> Pesanan telah dibatalkan / di-void.`;
+    sendTelegramMessage(telegramMsg);
+
     setOrderToVoid(null);
   };
 
@@ -108,9 +139,16 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
               <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
             </div>
             
-            <div className="text-slate-600 text-sm bg-slate-50 border border-slate-200 py-2 px-4 rounded-lg flex items-center gap-4">
-              Hari Ini
-              <span className="material-symbols-outlined text-[18px]">filter_alt</span>
+            <div className="relative">
+              <select 
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-4 pr-10 py-2 text-slate-600 focus:outline-none focus:border-[#4d3227] min-w-[140px]"
+              >
+                <option>Hari Ini</option>
+                <option>Semua Waktu</option>
+              </select>
+              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[18px]">filter_alt</span>
             </div>
           </div>
         </div>
@@ -123,6 +161,7 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
                   <th className="px-4 py-3 font-semibold text-sm">ID Pesanan</th>
                   <th className="px-4 py-3 font-semibold text-sm text-center">Antrian</th>
                   <th className="px-4 py-3 font-semibold text-sm">Staf</th>
+                  <th className="px-4 py-3 font-semibold text-sm">Pelanggan</th>
                   <th className="px-4 py-3 font-semibold text-sm">Nama Meja</th>
                   <th className="px-4 py-3 font-semibold text-sm text-center">Papan/Pager</th>
                   <th className="px-4 py-3 font-semibold text-sm">Tipe</th>
@@ -139,6 +178,7 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
                     <td className="px-4 py-4 text-sm text-slate-500 font-medium">{order.id}</td>
                     <td className="px-4 py-4 text-sm text-slate-500 text-center">{order.queue}</td>
                     <td className="px-4 py-4 text-sm text-slate-500">{order.staff}</td>
+                    <td className="px-4 py-4 text-sm text-slate-500 font-bold">{order.customerName || "-"}</td>
                     <td className="px-4 py-4 text-sm text-slate-500">{tables.find(t => t.id === order.table)?.name || order.table || "-"}</td>
                     <td className="px-4 py-4 text-sm text-slate-500 text-center">{order.pager}</td>
                     <td className="px-4 py-4 text-sm text-slate-500">{order.type}</td>

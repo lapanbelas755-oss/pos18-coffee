@@ -1,6 +1,7 @@
 import React, { useState, createContext, useContext } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
+import { Order } from "../types";
 
 interface POSContextType {
   sidebarOpen: boolean;
@@ -17,11 +18,14 @@ export function usePOSContext() {
   return context;
 }
 
-export default function POSLayout() {
+export default function POSLayout({ posOrders = [] }: { posOrders?: Order[] }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useAuthStore();
+
+  const unpaidCount = posOrders.filter(o => o.status === "Unpaid").length;
+  const onlineCount = posOrders.filter(o => o.type === "Online" && o.status !== "Selesai" && o.status !== "Batal").length;
 
   React.useEffect(() => {
     // Jika tidak ada user login dan bukan di halaman keluar, arahkan ke halaman keluar
@@ -32,7 +36,6 @@ export default function POSLayout() {
 
   const tabs = [
     { id: "/pos", name: "Penjualan", icon: "shopping_bag" },
-    { id: "/pos/shift", name: "Shift", icon: "schedule" },
     { id: "/pos/pesanan", name: "Pesanan", icon: "receipt_long" },
     { id: "/pos/online", name: "Pemesanan Online", icon: "phone_iphone" },
     { id: "/pos/item", name: "Item", icon: "inventory_2" },
@@ -76,7 +79,7 @@ export default function POSLayout() {
                   key={tab.id}
                   onClick={() => navigate(tab.id)}
                   title={tab.name}
-                  className={`flex items-center rounded-xl transition-all h-12 shrink-0 ${
+                  className={`relative flex items-center rounded-xl transition-all h-12 shrink-0 ${
                     sidebarOpen ? "px-4 justify-start" : "justify-center"
                   } ${
                     isActive
@@ -88,8 +91,18 @@ export default function POSLayout() {
                     {tab.icon}
                   </span>
                   {sidebarOpen && (
-                    <span className={`ml-4 font-semibold text-sm whitespace-nowrap ${isActive ? "text-[#4d3227]" : "text-white/90"}`}>
+                    <span className={`ml-4 font-semibold text-sm whitespace-nowrap flex-1 text-left ${isActive ? "text-[#4d3227]" : "text-white/90"}`}>
                       {tab.name}
+                    </span>
+                  )}
+                  {tab.id === "/pos/pesanan" && unpaidCount > 0 && (
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${isActive ? 'bg-[#4d3227] text-white' : 'bg-red-500 text-white'} ${sidebarOpen ? 'ml-2' : 'absolute top-1 right-1'}`}>
+                      {unpaidCount}
+                    </span>
+                  )}
+                  {tab.id === "/pos/online" && onlineCount > 0 && (
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${isActive ? 'bg-[#4d3227] text-white' : 'bg-red-500 text-white'} ${sidebarOpen ? 'ml-2' : 'absolute top-1 right-1'}`}>
+                      {onlineCount}
                     </span>
                   )}
                 </button>

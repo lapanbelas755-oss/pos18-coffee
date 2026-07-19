@@ -17,7 +17,7 @@ export default function InventoryAdmin({ stockItems, setStockItems, wasteLogs, s
   const [activeTab, setActiveTab] = useState<"level" | "receiving" | "opname" | "waste">("level");
 
   const totalInventoryValue = useMemo(() => {
-    return stockItems.reduce((sum, s) => sum + ((s.unitCost || 0) * (s.stockLevel || 0)), 0);
+    return stockItems.reduce((sum, s) => sum + ((s.unitCost || 0) * (parseFloat(s.quantity) || 0)), 0);
   }, [stockItems]);
 
   const tabs = [

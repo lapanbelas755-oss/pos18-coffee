@@ -39,12 +39,28 @@ export default function POSDashboard({
     if (cart.length === 0) setCustomerName("");
   }, [cart.length]);
 
+  // Auto-populate customerName when table is selected
+  useEffect(() => {
+    if (activeTableId) {
+      const activeT = tables.find(t => t.id === activeTableId);
+      if (activeT && activeT.customerName) {
+        setCustomerName(activeT.customerName);
+      }
+    }
+  }, [activeTableId, tables]);
+
   const [selectedCategory, setSelectedCategory] = useState("Semua");
   const [search, setSearch] = useState("");
 
   const handleOrderTypeChange = (type: "Dine In" | "Take Out") => {
     setOrderType(type);
     setActiveTableId(null); // Reset meja setiap ganti tipe pesanan
+  };
+
+  const handleCancel = () => {
+    setCart([]);
+    setCustomerName("");
+    setActiveTableId(null);
   };
 
   const computedViewMode = (orderType === "Dine In" && !activeTableId) ? "table" : "menu";
@@ -87,6 +103,7 @@ export default function POSDashboard({
         setCustomerName={setCustomerName}
         onCheckout={onPrintBills}
         onSaveOrder={onSaveOrder}
+        onCancel={handleCancel}
         activeTableId={activeTableId}
         activeTableName={activeTableId ? tables.find(t => t.id === activeTableId)?.name : undefined}
       />

@@ -32,8 +32,8 @@ interface PosState {
   setKdsRouting: React.Dispatch<React.SetStateAction<Record<string, KdsRouteType>>>;
   promos: Promo[];
   setPromos: (fn: (prev: Promo[]) => Promo[]) => void;
-  isPrinterConnected: boolean;
-  setPrinterConnected: (status: boolean) => void;
+  connectedPrinters: { kasir: boolean; barista: boolean; dapur: boolean };
+  setPrinterConnected: (role: "kasir" | "barista" | "dapur", status: boolean) => void;
 }
 
 const PosContext = createContext<PosState | undefined>(undefined);
@@ -47,7 +47,10 @@ export function PosProvider({ children }: { children: ReactNode }) {
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
   const [dailyPrepCount, setDailyPrepCount] = useState(75);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
-  const [isPrinterConnected, setPrinterConnected] = useState(false);
+  const [connectedPrinters, setConnectedPrintersState] = useState({ kasir: false, barista: false, dapur: false });
+  const setPrinterConnected = (role: "kasir" | "barista" | "dapur", status: boolean) => {
+    setConnectedPrintersState(prev => ({ ...prev, [role]: status }));
+  };
   const [kdsRouting, setKdsRouting] = useState<Record<string, KdsRouteType>>(() => {
     const saved = localStorage.getItem('pos_kds_routing');
     if (saved) {
@@ -118,7 +121,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
       toasts, triggerToast, removeToast,
       kdsRouting, setKdsRouting,
       promos, setPromos,
-      isPrinterConnected, setPrinterConnected,
+      connectedPrinters, setPrinterConnected,
       setProducts
     }}>
       {children}

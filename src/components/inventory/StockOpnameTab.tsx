@@ -12,7 +12,7 @@ interface Props {
 export default function StockOpnameTab({ stockItems, setStockItems, onNotify }: Props) {
   // Local state for physical counts keyed by SKU
   const [physicalCounts, setPhysicalCounts] = useState<Record<string, string>>({});
-  const [showQR, setShowQR] = useState<"kitchen" | "barista" | null>(null);
+  const [showQR, setShowQR] = useState<"kitchen" | "barista" | "waiters" | null>(null);
 
   const handleApply = async () => {
     let appliedCount = 0;
@@ -89,6 +89,13 @@ export default function StockOpnameTab({ stockItems, setStockItems, onNotify }: 
             >
               <span className="material-symbols-outlined text-[18px]">qr_code_2</span>
               QR Barista
+            </button>
+            <button 
+              onClick={() => setShowQR("waiters")}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors whitespace-nowrap border border-slate-200"
+            >
+              <span className="material-symbols-outlined text-[18px]">qr_code_2</span>
+              QR Waiters
             </button>
             <button 
               onClick={handleApply}
@@ -171,7 +178,7 @@ export default function StockOpnameTab({ stockItems, setStockItems, onNotify }: 
               <span className="material-symbols-outlined">close</span>
             </button>
             <h3 className="text-2xl font-black text-slate-800 mb-1">
-              QR Opname {showQR === 'kitchen' ? 'Dapur' : 'Barista'}
+              QR Opname {showQR === 'kitchen' ? 'Dapur' : showQR === 'barista' ? 'Barista' : 'Waiters'}
             </h3>
             <p className="text-slate-500 text-sm mb-8 font-medium">Scan menggunakan kamera HP untuk mengupdate stok fisik secara langsung.</p>
             
@@ -186,10 +193,16 @@ export default function StockOpnameTab({ stockItems, setStockItems, onNotify }: 
               />
             </div>
             
-            <div className="bg-slate-50 w-full p-4 rounded-xl border border-slate-100 flex items-center justify-center gap-2 text-slate-600 font-bold">
-              <span className="material-symbols-outlined text-sm">link</span>
+            <button 
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/scan-opname/${showQR}`);
+                onNotify("Link berhasil disalin!", "success");
+              }}
+              className="bg-slate-50 hover:bg-slate-100 w-full p-4 rounded-xl border border-slate-200 flex items-center justify-center gap-2 text-slate-600 font-bold transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-sm">content_copy</span>
               <span className="text-xs truncate">{`${window.location.origin}/scan-opname/${showQR}`}</span>
-            </div>
+            </button>
             
             <p className="text-xs text-slate-400 mt-6 mt-4">
               *Karyawan akan diminta memasukkan PIN untuk verifikasi identitas.

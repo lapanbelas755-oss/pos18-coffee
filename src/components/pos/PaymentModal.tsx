@@ -1,18 +1,45 @@
 import React, { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { CartItem } from "../../types";
+import { CartItem, Promo } from "../../types";
 import { calculateItemUnitPrice } from "../../utils/pricing";
 
 interface PaymentModalProps {
-  total: number;
+  total: number; // This is now subtotal + tax (no promo applied yet)
   cart?: CartItem[];
+  promos?: Promo[];
   onClose: () => void;
-  onSuccess: (method: string, amountGiven: number, change: number) => void;
+  onSuccess: (method: string, amountGiven: number, change: number, appliedPromo?: Promo | null) => void;
   onPartialSuccess?: (method: string, paidItems: CartItem[]) => void;
 }
 
-export default function PaymentModal({ total, cart = [], onClose, onSuccess, onPartialSuccess }: PaymentModalProps) {
+export default function PaymentModal({ total, cart = [], promos = [], onClose, onSuccess, onPartialSuccess }: PaymentModalProps) {
   const [activeTab, setActiveTab] = useState<"Penuh" | "Split" | "Item">("Penuh");
+  
+  // Promo State
+  const [showPromoModal, setShowPromoModal] = useState(false);
+  const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<Promo | null>(null);
+
+  const discountAmount = React.useMemo(() => {
+    if (!appliedPromo) return 0;
+    if (appliedPromo.type === "Persentase") {
+      return (total * appliedPromo.value) / 100;
+    } else if (appliedPromo.type === "Nominal") {
+      return appliedPromo.value;
+    } else if (appliedPromo.type === "Karyawan") {
+      const drink = cart.find(item => 
+        item.product.category.toLowerCase().includes('kopi') || 
+        item.product.category.toLowerCase().includes('minuman') || 
+        item.product.category.toLowerCase().includes('tea') ||
+        item.product.category.toLowerCase().includes('signature') ||
+        item.product.category.toLowerCase().includes('coffee')
+      );
+      return drink ? calculateItemUnitPrice(drink) : 0;
+    }
+    return 0;
+  }, [appliedPromo, total, cart]);
+
+  const finalTotal = Math.max(0, total - discountAmount);
   
   // Tab Penuh State
   const [method, setMethod] = useState<"Cash" | "QRIS">("Cash");
@@ -47,7 +74,18 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
           const data = await res.json();
           if (data.success && (data.status === 'settlement' || data.status === 'capture')) {
             clearInterval(interval);
-            onSuccess("QRIS", total, 0); // Sukses & Otomatis Selesai
+            if (activeTab === "Penuh") {
+              onSuccess("QRIS", finalTotal, 0, appliedPromo); // Sukses & Otomatis Selesai
+            } else if (activeTab === "Item") {
+              if (selectedItemIds.length > 0 && onPartialSuccess) {
+                onPartialSuccess("QRIS", selectedItems);
+              }
+            } else if (activeTab === "Split") {
+              const amountToPay = finalTotal / splitBy;
+              setPayments(prev => [...prev, { method: "QRIS", amount: amountToPay, id: Date.now().toString() }]);
+              setQrisUrl(null);
+              setQrisOrderId(null);
+            }
           }
         } catch (e) {
           console.error("Gagal mengecek status", e);
@@ -59,7 +97,7 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
     };
   }, [method, qrisOrderId, total, onSuccess]);
 
-  const handleSelectQris = async () => {
+  const handleSelectQris = async (amount: number = finalTotal) => {
     setMethod("QRIS");
     setIsGeneratingQris(true);
     setQrisError(null);
@@ -71,7 +109,7 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           order_id: Math.floor(Math.random() * 1000000).toString(),
-          gross_amount: total,
+          gross_amount: amount,
           customer_name: "Customer POS"
         })
       });
@@ -100,33 +138,38 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
   const partialTotal = selectedItems.reduce((s, c) => s + (c.product.price * c.quantity), 0);
 
   const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
-  const remaining = Math.max(total - totalPaid, 0);
+  const remaining = Math.max(finalTotal - totalPaid, 0);
+
+  useEffect(() => {
+    setQrisUrl(null);
+    setQrisOrderId(null);
+  }, [partialTotal, activeTab]);
 
   const givenNum = parseInt(given.replace(/\D/g, "")) || 0;
   
   // Validation for Penuh
-  const change = method === "Cash" ? givenNum - total : 0;
-  const isPenuhValid = method === "QRIS" || (method === "Cash" && givenNum >= total);
+  const change = method === "Cash" ? givenNum - finalTotal : 0;
+  const isPenuhValid = method === "QRIS" || (method === "Cash" && givenNum >= finalTotal);
 
   const handleQuickAmount = (amount: number) => {
     setGiven(amount.toString());
   };
 
   const handleExactAmount = () => {
-    setGiven(total.toString());
+    setGiven(finalTotal.toString());
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (activeTab === "Penuh") {
       if (isPenuhValid) {
-        onSuccess(method, method === "Cash" ? givenNum : total, change);
+        onSuccess(method, method === "Cash" ? givenNum : finalTotal, change, appliedPromo);
       }
     } else if (activeTab === "Split") {
-      if (totalPaid >= total) {
+      if (totalPaid >= finalTotal) {
         const methods = [...new Set(payments.map(p => p.method))];
         const primaryMethod = methods.length === 1 ? methods[0] : `Multi (${methods.join("+")})`;
-        onSuccess(primaryMethod, total, 0);
+        onSuccess(primaryMethod, finalTotal, 0, appliedPromo);
       }
     } else if (activeTab === "Item") {
       if (selectedItemIds.length > 0 && onPartialSuccess) {
@@ -140,10 +183,14 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
   };
 
   const handleAddSplitPayment = (splitMethod: "Cash" | "QRIS") => {
-    const amountToPay = total / splitBy;
-    if (totalPaid + amountToPay > total + 1) return; // Prevent overpayment
+    const amountToPay = finalTotal / splitBy;
+    if (totalPaid + amountToPay > finalTotal + 1) return; // Prevent overpayment
     
-    setPayments([...payments, { method: splitMethod, amount: amountToPay, id: Date.now().toString() }]);
+    if (splitMethod === "QRIS") {
+      handleSelectQris(amountToPay);
+    } else {
+      setPayments([...payments, { method: splitMethod, amount: amountToPay, id: Date.now().toString() }]);
+    }
   };
 
   const handleRemoveSplitPayment = (id: string) => {
@@ -191,7 +238,7 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 flex flex-col md:flex-row gap-6 min-h-0">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 pt-6 pb-8 md:pb-10 flex flex-col md:flex-row gap-6 min-h-0">
           
           {/* TAB 1: PENUH */}
           {activeTab === "Penuh" && (
@@ -199,9 +246,30 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
               {/* Left Column: Summary and Methods */}
               <div className="flex-1 flex flex-col justify-between gap-6">
                 <div className="space-y-6">
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center">
-                    <span className="font-bold text-slate-500">Total Tagihan</span>
-                    <span className="text-3xl font-extrabold text-[#4d3227]">Rp {total.toLocaleString("id-ID")}</span>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col gap-2">
+                    <div className="flex justify-between items-center text-sm font-bold text-slate-500">
+                      <span>Subtotal</span>
+                      <span>Rp {total.toLocaleString("id-ID")}</span>
+                    </div>
+                    {appliedPromo && (
+                      <div className="flex justify-between items-center text-sm font-bold text-emerald-600">
+                        <div className="flex items-center gap-1">
+                          <span>Diskon ({appliedPromo.code})</span>
+                          <button type="button" onClick={() => setAppliedPromo(null)} className="text-red-500 hover:text-red-700 ml-1">
+                            <span className="material-symbols-outlined text-[14px]">close</span>
+                          </button>
+                        </div>
+                        <span>- Rp {discountAmount.toLocaleString("id-ID")}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-200 mt-1">
+                      <span className="font-bold text-slate-700">Total Tagihan</span>
+                      <span className="text-3xl font-extrabold text-[#4d3227]">Rp {finalTotal.toLocaleString("id-ID")}</span>
+                    </div>
+                    <button type="button" onClick={() => setShowPromoModal(true)} className="mt-2 py-2 w-full border-2 border-dashed border-emerald-500 text-emerald-600 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-emerald-50 transition-colors">
+                      <span className="material-symbols-outlined text-[18px]">local_offer</span>
+                      {appliedPromo ? "Ganti Kupon" : "Gunakan Kupon Promo"}
+                    </button>
                   </div>
 
                   <div className="space-y-3">
@@ -219,7 +287,7 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
                       </button>
                       <button 
                         type="button"
-                        onClick={handleSelectQris}
+                        onClick={() => handleSelectQris(finalTotal)}
                         className={`py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 transition-all cursor-pointer ${
                           method === "QRIS" ? "border-[#4d3227] bg-blue-50/50 text-[#4d3227]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
                         }`}
@@ -286,21 +354,21 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
                       <div className="text-center space-y-2">
                         <span className="material-symbols-outlined text-red-500 text-4xl">error</span>
                         <p className="text-sm font-bold text-slate-700">{qrisError}</p>
-                        <button type="button" onClick={handleSelectQris} className="text-xs bg-white border px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 mt-2 mx-auto cursor-pointer">Coba Lagi</button>
+                        <button type="button" onClick={() => handleSelectQris(finalTotal)} className="text-xs bg-white border px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 mt-2 mx-auto cursor-pointer">Coba Lagi</button>
                       </div>
                     ) : qrisTimer <= 0 ? (
                       <div className="text-center space-y-2">
                         <span className="material-symbols-outlined text-amber-500 text-4xl">hourglass_disabled</span>
                         <p className="text-sm font-bold text-slate-700">QRIS Kedaluwarsa</p>
                         <p className="text-xs text-slate-500">Batas waktu habis. Silakan buat barcode baru.</p>
-                        <button type="button" onClick={handleSelectQris} className="text-xs bg-white border px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 mt-2 mx-auto cursor-pointer">Buat Baru</button>
+                        <button type="button" onClick={() => handleSelectQris(finalTotal)} className="text-xs bg-white border px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 mt-2 mx-auto cursor-pointer">Buat Baru</button>
                       </div>
                     ) : qrisUrl ? (
                       <div className="flex flex-col items-center w-full">
                         <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-200 mb-4 flex items-center justify-center animate-fade-in">
                           <img src={qrisUrl} alt="QRIS Midtrans" className="w-[240px] h-[240px] object-contain mix-blend-multiply" />
                         </div>
-                        <p className="text-[20px] font-black text-slate-800 mb-1">Rp {total.toLocaleString("id-ID")}</p>
+                        <p className="text-[20px] font-black text-slate-800 mb-1">Rp {finalTotal.toLocaleString("id-ID")}</p>
                         <p className="text-xs font-bold text-slate-500 flex items-center justify-center gap-1">
                           <span className="material-symbols-outlined text-[14px]">qr_code_scanner</span>
                           Scan QRIS dengan aplikasi pembayaran
@@ -317,7 +385,7 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
                         </div>
                         <p className="text-sm font-bold text-slate-700">Pembayaran Midtrans</p>
                         <p className="text-xs text-slate-500 mt-1 mb-4">Dapatkan barcode QRIS dinamis.</p>
-                        <button type="button" onClick={handleSelectQris} className="bg-[#4d3227] text-white px-6 py-2.5 rounded-xl font-bold shadow-sm hover:bg-[#3d271e] transition-colors cursor-pointer text-xs">
+                        <button type="button" onClick={() => handleSelectQris(finalTotal)} className="bg-[#4d3227] text-white px-6 py-2.5 rounded-xl font-bold shadow-sm hover:bg-[#3d271e] transition-colors cursor-pointer text-xs">
                           Buat Barcode QRIS
                         </button>
                       </div>
@@ -336,7 +404,7 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
                 <div className="space-y-6">
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center">
                     <span className="font-bold text-slate-500">Total Tagihan</span>
-                    <span className="text-3xl font-extrabold text-[#4d3227]">Rp {total.toLocaleString("id-ID")}</span>
+                    <span className="text-3xl font-extrabold text-[#4d3227]">Rp {finalTotal.toLocaleString("id-ID")}</span>
                   </div>
 
                   <div>
@@ -346,7 +414,7 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
                       <span className="text-2xl font-extrabold text-slate-800 w-8 text-center">{splitBy}</span>
                       <button type="button" onClick={() => setSplitBy(Math.min(10, splitBy + 1))} className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center font-bold text-lg hover:bg-slate-50 active:scale-95 cursor-pointer">+</button>
                       <span className="ml-auto text-xs font-black text-amber-800 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
-                        Rp {Math.round(total / splitBy).toLocaleString("id-ID")} / pax
+                        Rp {Math.round(finalTotal / splitBy).toLocaleString("id-ID")} / pax
                       </span>
                     </div>
                   </div>
@@ -400,15 +468,34 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
 
                 <div className="pt-4 border-t border-slate-200 bg-slate-50">
                   {remaining > 0 ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => handleAddSplitPayment("Cash")} className="py-3 bg-white text-[#4d3227] border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-100 flex items-center justify-center gap-1 active:scale-98 transition-all cursor-pointer shadow-sm">
-                        <span className="material-symbols-outlined text-[16px]">payments</span>
-                        Bayar 1 Pax (Cash)
-                      </button>
-                      <button type="button" onClick={() => handleAddSplitPayment("QRIS")} className="py-3 bg-white text-[#4d3227] border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-100 flex items-center justify-center gap-1 active:scale-98 transition-all cursor-pointer shadow-sm">
-                        <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
-                        Bayar 1 Pax (QRIS)
-                      </button>
+                    <div className="space-y-4">
+                      {qrisUrl && activeTab === "Split" ? (
+                        <div className="flex flex-col items-center w-full animate-fade-in bg-white p-3 rounded-2xl border border-slate-200">
+                          <img src={qrisUrl} alt="QRIS" className="w-[150px] h-[150px] object-contain mix-blend-multiply" />
+                          <p className="text-sm font-black text-slate-800 mt-2">Rp {Math.round(finalTotal / splitBy).toLocaleString("id-ID")}</p>
+                          <div className="mt-1 text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200 inline-flex items-center gap-1 animate-pulse">
+                            <span className="material-symbols-outlined text-[12px]">schedule</span>
+                            Sisa Waktu: {Math.floor(qrisTimer / 60)}:{(qrisTimer % 60).toString().padStart(2, '0')}
+                          </div>
+                          <button type="button" onClick={() => { setQrisUrl(null); setQrisOrderId(null); }} className="mt-2 text-xs text-red-500 hover:text-red-600 underline font-bold cursor-pointer">Batal QRIS</button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button type="button" onClick={() => handleAddSplitPayment("Cash")} className="py-3 bg-white text-[#4d3227] border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-100 flex items-center justify-center gap-1 active:scale-98 transition-all cursor-pointer shadow-sm">
+                            <span className="material-symbols-outlined text-[16px]">payments</span>
+                            Bayar 1 Pax (Cash)
+                          </button>
+                          <button type="button" onClick={() => handleAddSplitPayment("QRIS")} className="py-3 bg-white text-[#4d3227] border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-100 flex items-center justify-center gap-1 active:scale-98 transition-all cursor-pointer shadow-sm relative overflow-hidden">
+                            {isGeneratingQris && (
+                              <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                                <div className="w-5 h-5 border-2 border-slate-300 border-t-[#4d3227] rounded-full animate-spin"></div>
+                              </div>
+                            )}
+                            <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
+                            Bayar 1 Pax (QRIS)
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="bg-emerald-100 text-emerald-800 p-3.5 rounded-xl text-center text-xs font-black border border-emerald-200">
@@ -480,11 +567,38 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
                   </div>
 
                   {method === "QRIS" && partialTotal > 0 && (
-                    <div className="flex flex-col items-center justify-center pt-2">
-                      <div className="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-center text-center">
-                        <p className="text-xs text-slate-400 italic">Silakan buat QRIS melalui tombol bayar sebelah kiri</p>
+                  <div className="flex flex-col items-center justify-center animate-fade-in text-center w-full mt-4">
+                    {isGeneratingQris ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-4 border-slate-300 border-t-blue-600 rounded-full animate-spin"></div>
+                        <p className="text-sm font-bold text-slate-500">Membuat QRIS...</p>
                       </div>
-                    </div>
+                    ) : qrisError ? (
+                      <div className="text-center space-y-2">
+                        <span className="material-symbols-outlined text-red-500 text-3xl">error</span>
+                        <p className="text-sm font-bold text-slate-700">{qrisError}</p>
+                        <button type="button" onClick={() => handleSelectQris(partialTotal)} className="text-xs bg-white border px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 mt-2 mx-auto cursor-pointer">Coba Lagi</button>
+                      </div>
+                    ) : qrisUrl ? (
+                      <div className="flex flex-col items-center w-full">
+                        <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 mb-2 flex items-center justify-center animate-fade-in">
+                          <img src={qrisUrl} alt="QRIS" className="w-[180px] h-[180px] object-contain mix-blend-multiply" />
+                        </div>
+                        <p className="text-lg font-black text-slate-800 mb-1">Rp {partialTotal.toLocaleString("id-ID")}</p>
+                        <div className="mt-2 text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200 inline-flex items-center gap-1 animate-pulse">
+                          <span className="material-symbols-outlined text-[12px]">schedule</span>
+                          Sisa Waktu: {Math.floor(qrisTimer / 60)}:{(qrisTimer % 60).toString().padStart(2, '0')}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <p className="text-xs text-slate-500 mb-3">Buat QRIS untuk item terpilih</p>
+                        <button type="button" onClick={() => handleSelectQris(partialTotal)} className="bg-[#4d3227] text-white px-5 py-2 rounded-xl font-bold shadow-sm hover:bg-[#3d271e] transition-colors cursor-pointer text-xs">
+                          Tampilkan QRIS
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   )}
                 </div>
               </div>
@@ -493,6 +607,60 @@ export default function PaymentModal({ total, cart = [], onClose, onSuccess, onP
 
         </form>
       </div>
+
+      {/* Modal Kupon */}
+      {showPromoModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[160] p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col">
+            <div className="bg-[#4d3227] text-white p-5 flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-extrabold">Pakai Promo / Kupon</h2>
+              </div>
+              <button onClick={() => setShowPromoModal(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={promoCodeInput}
+                  onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                  placeholder="Masukkan Kode Kupon" 
+                  className="flex-1 border border-slate-300 rounded-xl px-4 py-2 font-bold uppercase focus:border-[#4d3227] outline-none"
+                />
+                <button 
+                  onClick={() => {
+                    const found = promos?.find(p => p.code === promoCodeInput && p.status === "Aktif");
+                    if (found) { setAppliedPromo(found); setShowPromoModal(false); }
+                  }}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
+                >
+                  Terapkan
+                </button>
+              </div>
+
+              {promos && promos.filter(p => p.status === "Aktif" && p.type !== "Karyawan").length > 0 && (
+                <div className="mt-4 border-t border-slate-100 pt-4">
+                  <p className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider">Promo Tersedia</p>
+                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                    {promos.filter(p => p.status === "Aktif" && p.type !== "Karyawan").map(promo => (
+                      <div key={promo.id} onClick={() => { setAppliedPromo(promo); setShowPromoModal(false); }} className="border border-slate-200 p-3 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 cursor-pointer transition-colors flex justify-between items-center group">
+                        <div>
+                          <p className="font-bold text-slate-800 text-sm">{promo.code}</p>
+                          <p className="text-xs text-slate-500 font-medium">{promo.title}</p>
+                        </div>
+                        <span className="material-symbols-outlined text-slate-300 group-hover:text-emerald-500">chevron_right</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
