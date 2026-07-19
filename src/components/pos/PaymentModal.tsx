@@ -63,13 +63,18 @@ export default function PaymentModal({ total, cart = [], promos = [], onClose, o
     };
   }, [method, qrisUrl, qrisTimer]);
 
+  const getApiUrl = () => {
+    return (import.meta as any).env.VITE_API_URL || 
+      (window.location.protocol === "https:" ? window.location.origin : "http://localhost:3002");
+  };
+
   // Check transaction status periodically if QRIS is active
   useEffect(() => {
     let interval: any;
     if (method === "QRIS" && qrisOrderId) {
       interval = setInterval(async () => {
         try {
-          const apiUrl = (import.meta as any).env.VITE_API_URL || "http://localhost:3002";
+          const apiUrl = getApiUrl();
           const res = await fetch(`${apiUrl}/api/qris/status/${qrisOrderId}`);
           const data = await res.json();
           if (data.success && (data.status === 'settlement' || data.status === 'capture')) {
@@ -85,6 +90,7 @@ export default function PaymentModal({ total, cart = [], promos = [], onClose, o
               setPayments(prev => [...prev, { method: "QRIS", amount: amountToPay, id: Date.now().toString() }]);
               setQrisUrl(null);
               setQrisOrderId(null);
+              setMethod("Cash");
             }
           }
         } catch (e) {
@@ -103,7 +109,7 @@ export default function PaymentModal({ total, cart = [], promos = [], onClose, o
     setQrisError(null);
     setQrisTimer(900);
     try {
-      const apiUrl = (import.meta as any).env.VITE_API_URL || "http://localhost:3002";
+      const apiUrl = getApiUrl();
       const response = await fetch(`${apiUrl}/api/qris`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
