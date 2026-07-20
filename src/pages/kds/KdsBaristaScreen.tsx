@@ -148,9 +148,12 @@ export default function KdsBaristaScreen() {
             const ticketBytes = buildBaristaTicket({
               orderId: newestOrder.id.replace('INV-', ''),
               tableNo: tableName || undefined,
+              customerName: newestOrder.customer_name,
+              queueNo: newestOrder.queue,
               item: { name: it.name, notes: it.notes },
               itemIndex: index + 1,
-              totalItems: newestOrder.items.length
+              totalItems: newestOrder.items.length,
+              qty: it.qty || 1
             });
             printReceipt(ticketBytes, "Barista").catch(() => {});
           });
@@ -226,9 +229,12 @@ export default function KdsBaristaScreen() {
       const bData = buildBaristaTicket({
         orderId: order.id.split('-').slice(0, 2).join('-') + " (REPRINT)",
         tableNo: displayTable,
+        customerName: order.customer_name,
+        queueNo: order.queue,
         item: { name: item.name, notes: item.notes },
         itemIndex: index + 1,
         totalItems: order.items.length,
+        qty: item.qty || 1,
       });
       printReceipt(bData, "Barista").catch(() => {});
     });

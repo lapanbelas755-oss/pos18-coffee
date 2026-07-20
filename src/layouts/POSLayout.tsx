@@ -20,6 +20,7 @@ export function usePOSContext() {
 
 export default function POSLayout({ posOrders = [] }: { posOrders?: Order[] }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showShiftAlert, setShowShiftAlert] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useAuthStore();
@@ -135,7 +136,21 @@ export default function POSLayout({ posOrders = [] }: { posOrders?: Order[] }) {
             {bottomTabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => navigate(tab.id)}
+                onClick={() => {
+                  if (tab.id === "/pos/keluar") {
+                    const savedShift = localStorage.getItem("current_shift");
+                    if (savedShift) {
+                      try {
+                        const shiftData = JSON.parse(savedShift);
+                        if (shiftData.isOpen) {
+                          setShowShiftAlert(true);
+                          return;
+                        }
+                      } catch (e) {}
+                    }
+                  }
+                  navigate(tab.id);
+                }}
                 title={tab.name}
                 className={`flex items-center rounded-xl transition-all h-12 shrink-0 ${
                   sidebarOpen ? "px-4 justify-start" : "justify-center"
@@ -171,6 +186,38 @@ export default function POSLayout({ posOrders = [] }: { posOrders?: Order[] }) {
           <Outlet />
         </main>
       </div>
+
+      {/* Custom Alert Modal for Shift */}
+      {showShiftAlert && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col items-center p-8 text-center animate-slide-up">
+            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
+              <span className="material-symbols-outlined text-4xl text-red-500">lock</span>
+            </div>
+            <h3 className="text-2xl font-extrabold text-slate-800 mb-2">Akses Ditolak</h3>
+            <p className="text-slate-500 font-medium mb-8 text-sm">
+              Anda wajib <b>menutup shift</b> terlebih dahulu sebelum dapat melakukan proses logout.
+            </p>
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => setShowShiftAlert(false)}
+                className="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  setShowShiftAlert(false);
+                  navigate("/pos/shift");
+                }}
+                className="flex-1 py-3.5 bg-[#4d3227] text-white rounded-xl font-bold hover:bg-[#3a251d] transition-colors shadow-lg shadow-[#4d3227]/30"
+              >
+                Ke Shift
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </POSContext.Provider>
   );
 }

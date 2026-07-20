@@ -22,6 +22,7 @@ import { printReceipt, buildKasirReceipt, buildDapurTicket, buildBaristaTicket, 
 import { usePosStore } from "../../store/posStore";
 import { useAuthStore } from "../../store/authStore";
 import { sendTelegramNotification } from "../../utils/telegram";
+import { broadcastToDisplay } from "../../utils/customerDisplayBroadcast";
 
 interface ToastNotification {
   id: string;
@@ -49,6 +50,7 @@ export default function PosApp() {
   const [dailyPrepCount, setDailyPrepCount] = useState(75);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<KdsOrder | null>(null);
+  const isTransitioningToSuccess = React.useRef(false);
 
   useEffect(() => {
     // 1. Fetch Initial Data
@@ -275,6 +277,7 @@ export default function PosApp() {
     window.dispatchEvent(new Event("storage"));
   }, [posOrders]);
 
+
   const computedProducts = useMemo(() => {
     const normalizeName = (s: string) => s.toLowerCase().replace(/[\s\-_]/g, '');
     return products.map(prod => {
@@ -313,6 +316,43 @@ export default function PosApp() {
     table?: string;
   } | null>(null);
 
+  // BROADCAST STATE TO CUSTOMER DISPLAY
+  useEffect(() => {
+    if (isTransitioningToSuccess.current) return;
+    try {
+      const isPaymentActive = showPaymentModal;
+      
+      const cartItemsForDisplay = cart.map(item => ({
+        name: item.product.name,
+        qty: item.quantity,
+        price: calculateItemUnitPrice(item),
+        notes: item.notes || undefined,
+      }));
+      
+      const subtotal = cart.reduce((sum, item) => sum + calculateItemUnitPrice(item) * item.quantity, 0);
+      let discountAmount = 0;
+      if (checkoutPromo) {
+        if (checkoutPromo.type === "Persentase") discountAmount = (subtotal * checkoutPromo.value) / 100;
+        else if (checkoutPromo.type === "Nominal") discountAmount = checkoutPromo.value;
+        else if (checkoutPromo.type === "Karyawan") discountAmount = (subtotal * checkoutPromo.value) / 100;
+      }
+      
+      if (!isPaymentActive && cart.length === 0 && !showReceiptModal) {
+        broadcastToDisplay({ state: "idle" });
+      } else if (!showReceiptModal) {
+        broadcastToDisplay({
+          state: isPaymentActive ? "payment" : "cart",
+          items: cartItemsForDisplay,
+          subtotal,
+          discount: discountAmount,
+          tax: 0,
+          total: subtotal - discountAmount,
+          customerName: checkoutCustomerName || undefined
+        });
+      }
+    } catch(e) {}
+  }, [cart, promos, showPaymentModal, showReceiptModal, checkoutCustomerName]);
+
   const triggerToast = (message: string, type: "success" | "warning" | "info" = "success") => {
     const id = Date.now().toString();
     setToasts(prev => [...prev, { id, message, type }]);
@@ -336,7 +376,9 @@ export default function PosApp() {
     return { ...rest, customer_name: customerName || null };
   };
 
-  const handlePrintBillsCheckout = (method: string, amountGiven?: number, change?: number, itemsToCheckOut: CartItem[] = cart) => {
+  const handlePrintBillsCheckout = async (method: string, amountGiven?: number, change?: number, itemsOverride?: CartItem[]) => {
+    isTransitioningToSuccess.current = true;
+    const itemsToCheckOut = itemsOverride || cart;
     if (itemsToCheckOut.length === 0) return;
 
     // --- CHECK PB1 Tax ---
@@ -424,22 +466,44 @@ export default function PosApp() {
         } catch (e) { }
       }
 
+      let footerText = "Terima kasih atas kunjungan Anda!\\nFollow IG: @pos18.coffee";
+      let showWifi = true;
+      const savedReceiptSettings = localStorage.getItem("pos_receipt_settings");
+      if (savedReceiptSettings) {
+        try {
+          const s = JSON.parse(savedReceiptSettings);
+          if (s.footerText !== undefined) footerText = s.footerText;
+          if (s.showWifi !== undefined) showWifi = s.showWifi;
+        } catch (e) {}
+      }
+
       const dataToPrint = buildKasirReceipt({
         storeName,
         storeAddress,
         cashierName: currentUser?.name.split(' ')[0] || "Kasir",
         tableNo: receiptData.table,
-        items: receiptData.items.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
+        queueNo: receiptData.queue,
+        items: receiptData.items.map(i => ({ name: i.name, qty: i.qty, price: i.price, mood: i.mood, ice: i.ice, sugar: i.sugar, notes: i.notes })),
         total: receiptData.total,
         paid: receiptData.amountGiven || receiptData.total,
         change: receiptData.change || 0,
         paymentMethod: receiptData.paymentMethod || "UNKNOWN",
+        footerText,
+        showWifi,
       });
       printReceipt(dataToPrint, "Kasir").catch(() => { });
-      // We don't show the modal if physical printer is used
-    } else {
-      setShowReceiptModal(true);
     }
+    
+    // Selalu tampilkan popup sebagai notifikasi berhasil
+    setShowReceiptModal(true);
+    
+    // Tampilkan success screen di Customer Display
+    broadcastToDisplay({
+      state: "success",
+      customerName: checkoutCustomerName || undefined,
+      change: change || 0,
+      items: receiptData.items
+    });
 
     const tableAlreadySaved = activeTableId && tables.find(t => t.id === activeTableId)?.status === "Sudah Dipesan";
 
@@ -488,13 +552,16 @@ export default function PosApp() {
 
         // Print KDS Ticket if printer connected
         if (connectedPrinters.barista) {
-          baristaItems.forEach((item, index) => {
+          baristaCart.forEach((i, idx) => {
             const bData = buildBaristaTicket({
               orderId: ticketId,
               tableNo: tableName || undefined,
-              item: { name: item.name, notes: item.notes }, // minimal info for now
-              itemIndex: index + 1,
-              totalItems: baristaItems.length,
+              customerName: finalCustomerName,
+              item: { name: i.product.name, notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ") },
+              itemIndex: idx + 1,
+              totalItems: baristaCart.length,
+              stickerMode: false,
+              qty: i.quantity,
             });
             printReceipt(bData, "Barista").catch(() => { });
           });
@@ -536,7 +603,8 @@ export default function PosApp() {
           const dData = buildDapurTicket({
             orderId: ticketId,
             tableNo: tableName || undefined,
-            items: kitchenItems.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
+            customerName: finalCustomerName,
+            items: kitchenCart.map(i => ({ name: `${i.quantity}x ${i.product.name}`, qty: i.quantity, notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ") })),
           });
           printReceipt(dData, "Dapur").catch(() => { });
         }
@@ -1016,13 +1084,16 @@ export default function PosApp() {
           });
 
           if (connectedPrinters.barista) {
-            baristaItems.forEach((item, index) => {
+            baristaCart.forEach((i, idx) => {
               const bData = buildBaristaTicket({
                 orderId: ticketId + (existingOrder ? " (TAMBAHAN)" : ""),
                 tableNo: tableName || undefined,
-                item: { name: item.name, notes: item.notes },
-                itemIndex: index + 1,
-                totalItems: baristaItems.length,
+                customerName: customerName,
+                item: { name: i.product.name, notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ") },
+                itemIndex: idx + 1,
+                totalItems: baristaCart.length,
+                stickerMode: false,
+                qty: i.quantity,
               });
               printReceipt(bData, "Barista").catch(() => { });
             });
@@ -1063,7 +1134,8 @@ export default function PosApp() {
             const dData = buildDapurTicket({
               orderId: ticketId + (existingOrder ? " (TAMBAHAN)" : ""),
               tableNo: tableName || undefined,
-              items: kitchenItems.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
+              customerName: customerName,
+              items: kitchenCart.map(i => ({ name: `${i.quantity}x ${i.product.name}`, qty: i.quantity, notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ") })),
             });
             printReceipt(dData, "Dapur").catch(() => { });
           }
@@ -1213,18 +1285,16 @@ export default function PosApp() {
     const kitchenCart = order.items.filter(i => isKitchenItem(i.product.category));
 
     if (connectedPrinters.barista && baristaCart.length > 0) {
-      const baristaItems = baristaCart.map((item) => ({
-        name: `${item.quantity}x ${item.product.name}`,
-        notes: [item.selectedMood, item.notes].filter(Boolean).join(" - ")
-      }));
-      
-      baristaItems.forEach((item, index) => {
+      baristaCart.forEach((i, idx) => {
         const bData = buildBaristaTicket({
           orderId: ticketId + " (REPRINT)",
           tableNo: tableName || undefined,
-          item: { name: item.name, notes: item.notes },
-          itemIndex: index + 1,
-          totalItems: baristaItems.length,
+          customerName: order.customerName,
+          item: { name: i.product.name, notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ") },
+          itemIndex: idx + 1,
+          totalItems: baristaCart.length,
+          stickerMode: false,
+          qty: i.quantity,
         });
         printReceipt(bData, "Barista").catch(() => { });
       });
@@ -1259,6 +1329,7 @@ export default function PosApp() {
           customerName={checkoutCustomerName}
           onClose={() => setShowPaymentModal(false)}
           onSuccess={(method, amountGiven, change, appliedPromo) => {
+            isTransitioningToSuccess.current = true;
             setShowPaymentModal(false);
             if (appliedPromo) {
               setCheckoutPromo(appliedPromo);
@@ -1272,6 +1343,7 @@ export default function PosApp() {
             }
           }}
           onPartialSuccess={(method, paidItems) => {
+            isTransitioningToSuccess.current = true;
             setShowPaymentModal(false);
             handlePrintBillsCheckout(method, undefined, undefined, paidItems);
           }}
@@ -1425,8 +1497,11 @@ export default function PosApp() {
                 </>
               )}
             </div>
-            <button onClick={() => setShowReceiptModal(false)} className="w-full bg-[#4d3227] text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-[#3a251d] active:scale-95 transition-all shadow-md cursor-pointer">
-              Tutup Simulasi Struk
+            <button onClick={() => {
+              isTransitioningToSuccess.current = false;
+              setShowReceiptModal(false);
+            }} className="w-full mt-6 bg-[#4a2d21] text-white py-4 rounded-xl font-bold hover:bg-[#382016] transition-colors uppercase tracking-widest text-sm shadow-md">
+              TUTUP
             </button>
           </div>
         </div>

@@ -54,6 +54,14 @@ export default function ProductMenu({
       {/* Top Bar */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex flex-col gap-2">
         <div className="flex items-center gap-3">
+          {/* Search Button (Moved to the left) */}
+          <button
+            onClick={() => setShowSearch(!showSearch)}
+            className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center transition-colors ${showSearch ? "bg-primary text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+          >
+            <span className="material-symbols-outlined text-[20px]">search</span>
+          </button>
+
           {/* Category Tabs */}
           <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto overflow-y-hidden custom-scrollbar pb-1">
             {categories.map(cat => (
@@ -73,16 +81,9 @@ export default function ProductMenu({
 
           {/* Right Tools */}
           <div className="flex items-center gap-2 shrink-0">
-
-            <button
-              onClick={() => setShowSearch(!showSearch)}
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showSearch ? "bg-primary text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-            >
-              <span className="material-symbols-outlined text-[20px]">search</span>
-            </button>
-            <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors relative cursor-pointer">
+            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors relative cursor-pointer">
               <span className="material-symbols-outlined text-[20px]">notifications</span>
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+              <span className="absolute top-1.5 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>
             </div>
           </div>
         </div>

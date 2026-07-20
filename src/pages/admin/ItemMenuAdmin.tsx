@@ -395,6 +395,44 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
               </div>
 
               <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Tipe Minuman (Opsional)</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={newItem.moods?.includes('Hot') || false} 
+                      onChange={(e) => {
+                        const currentMoods = newItem.moods || [];
+                        if (e.target.checked) {
+                          setNewItem({...newItem, moods: [...currentMoods, 'Hot']});
+                        } else {
+                          setNewItem({...newItem, moods: currentMoods.filter(m => m !== 'Hot')});
+                        }
+                      }} 
+                      className="w-4 h-4 rounded text-[#4a2d21] focus:ring-[#4a2d21]" 
+                    />
+                    <span>Tersedia Hot</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={newItem.moods?.includes('Cold') || false} 
+                      onChange={(e) => {
+                        const currentMoods = newItem.moods || [];
+                        if (e.target.checked) {
+                          setNewItem({...newItem, moods: [...currentMoods, 'Cold']});
+                        } else {
+                          setNewItem({...newItem, moods: currentMoods.filter(m => m !== 'Cold')});
+                        }
+                      }} 
+                      className="w-4 h-4 rounded text-[#4a2d21] focus:ring-[#4a2d21]" 
+                    />
+                    <span>Tersedia Ice (Cold)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Harga Tambahan Ice/Cold (Opsional)</label>
                 <input 
                   type="number" 
@@ -549,6 +587,44 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
                   onChange={e => setEditingItem({...editingItem, image: e.target.value})}
                   className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Tipe Minuman (Opsional)</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={editingItem.moods?.includes('Hot') || false} 
+                      onChange={(e) => {
+                        const currentMoods = editingItem.moods || [];
+                        if (e.target.checked) {
+                          setEditingItem({...editingItem, moods: [...currentMoods, 'Hot']});
+                        } else {
+                          setEditingItem({...editingItem, moods: currentMoods.filter(m => m !== 'Hot')});
+                        }
+                      }} 
+                      className="w-4 h-4 rounded text-[#4a2d21] focus:ring-[#4a2d21]" 
+                    />
+                    <span>Tersedia Hot</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={editingItem.moods?.includes('Cold') || false} 
+                      onChange={(e) => {
+                        const currentMoods = editingItem.moods || [];
+                        if (e.target.checked) {
+                          setEditingItem({...editingItem, moods: [...currentMoods, 'Cold']});
+                        } else {
+                          setEditingItem({...editingItem, moods: currentMoods.filter(m => m !== 'Cold')});
+                        }
+                      }} 
+                      className="w-4 h-4 rounded text-[#4a2d21] focus:ring-[#4a2d21]" 
+                    />
+                    <span>Tersedia Ice (Cold)</span>
+                  </label>
+                </div>
               </div>
 
               <div>

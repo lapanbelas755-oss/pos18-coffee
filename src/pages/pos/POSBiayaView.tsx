@@ -16,7 +16,7 @@ export default function POSBiayaView({ onNotify }: POSBiayaViewProps) {
       type: "Persentase",
       value: 10,
       applyTo: "Semua Pesanan",
-      isActive: true,
+      isActive: false,
       description: "Pajak daerah wajib untuk setiap transaksi FnB."
     },
     {
@@ -25,7 +25,7 @@ export default function POSBiayaView({ onNotify }: POSBiayaViewProps) {
       type: "Persentase",
       value: 5,
       applyTo: "Dine-in (Makan di Tempat)",
-      isActive: true,
+      isActive: false,
       description: "Biaya layanan khusus pelanggan makan di tempat."
     },
     {
@@ -43,7 +43,7 @@ export default function POSBiayaView({ onNotify }: POSBiayaViewProps) {
       type: "Persentase",
       value: 20,
       applyTo: "Pesanan Online (GoFood/GrabFood)",
-      isActive: true,
+      isActive: false,
       description: "Potongan biaya dari aplikasi pihak ketiga."
     }
   ];

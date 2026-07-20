@@ -363,40 +363,61 @@ export function buildKasirReceipt(order: {
   storeAddress: string;
   cashierName: string;
   tableNo?: string;
-  items: { name: string; qty: number; price: number }[];
+  items: { name: string; qty: number; price: number; mood?: string; ice?: string; sugar?: string; notes?: string }[];
   total: number;
   paid: number;
   change: number;
   paymentMethod: string;
   footerText?: string;
   showWifi?: boolean;
+  queueNo?: string;
 }): ReceiptData {
   const lines: ReceiptLine[] = [
-    { text: '',              align: 'center' },
     { text: order.storeName, align: 'center', bold: true, size: 'double-height' },
     { text: order.storeAddress, align: 'center' },
-    { text: '',              align: 'left' },
     { text: '', separator: true },
-    { text: `Kasir : ${order.cashierName}` },
+    { text: `kasir : ${order.cashierName}` },
+    ...(order.queueNo ? [{ text: `Antrian : ${order.queueNo}`, bold: true } as ReceiptLine] : []),
     ...(order.tableNo ? [{ text: `Meja  : ${order.tableNo}` } as ReceiptLine] : []),
-    { text: `Tgl   : ${new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}` },
+    { text: `Tgl : ${new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}` },
     { text: '', separator: true },
   ];
 
   for (const item of order.items) {
-    const priceStr = `${item.qty}x @ ${item.price.toLocaleString('id-ID')}`;
-    const totalStr = (item.qty * item.price).toLocaleString('id-ID');
-    lines.push({ text: item.name, bold: true });
-    lines.push({ text: `  ${priceStr.padEnd(18)}${totalStr.padStart(10)}` });
+    const totalStr = `Rp. ${(item.qty * item.price).toLocaleString('id-ID')}`;
+    lines.push({ text: `${item.name} ( ${item.qty} x )`.padEnd(20) + totalStr.padStart(12), bold: true });
+    
+    let tipe = [];
+    if (item.mood) tipe.push(item.mood);
+    if (item.ice) tipe.push(item.ice);
+    
+    if (tipe.length > 0) {
+      lines.push({ text: `tipe : ( ${tipe.join('/').toLowerCase()} )` });
+    }
+    if (item.notes) {
+      lines.push({ text: `Catatan : ${item.notes}` });
+    }
   }
 
   lines.push(
     { text: '', separator: true },
-    { text: `${'TOTAL'.padEnd(20)}${order.total.toLocaleString('id-ID').padStart(10)}`, bold: true },
-    { text: `${'Bayar'.padEnd(20)}${order.paid.toLocaleString('id-ID').padStart(10)}` },
-    { text: `${'Kembali'.padEnd(20)}${order.change.toLocaleString('id-ID').padStart(10)}`, bold: true },
-    { text: `Metode: ${order.paymentMethod}` },
+    { text: `${'Total :'.padEnd(16)}${order.total.toLocaleString('id-ID').padStart(16)}`, bold: true },
+    { text: `${'Bayar :'.padEnd(16)}${order.paid.toLocaleString('id-ID').padStart(16)}` },
+    { text: `${'Kembali :'.padEnd(16)}${order.change.toLocaleString('id-ID').padStart(16)}`, bold: true },
+    { text: `Metode : ${order.paymentMethod.toLowerCase()}` },
     { text: '', separator: true },
+  );
+
+  if (order.showWifi) {
+    lines.push(
+      { text: '',              align: 'center' },
+      { text: '[ QR WiFi ]', align: 'center', bold: true },
+      { text: 'Scan for WiFi - Pass: Kopi18', align: 'center' },
+      { text: '', separator: true },
+    );
+  }
+
+  lines.push(
     { text: '',              align: 'center' },
     { text: order.footerText ?? 'Terima kasih atas kunjungan Anda!', align: 'center' },
   );
@@ -408,22 +429,26 @@ export function buildKasirReceipt(order: {
 export function buildDapurTicket(order: {
   orderId: string;
   tableNo?: string;
+  customerName?: string;
+  queueNo?: string;
   items: { name: string; qty: number; notes?: string }[];
   largeNotes?: boolean;
 }): ReceiptData {
   const lines: ReceiptLine[] = [
-    { text: '-- TIKET DAPUR --', align: 'center', bold: true, size: 'double-height' },
+    { text: '-- TIKET KITCHEN --', align: 'center', bold: true },
     { text: order.tableNo ? `MEJA ${order.tableNo}` : 'TAKE AWAY', align: 'center', bold: true, size: 'double' },
-    { text: `Order: #${order.orderId}` },
-    { text: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) },
+    { text: '', separator: true },
+    ...(order.queueNo ? [{ text: `Antrian : ${order.queueNo}`, bold: true } as ReceiptLine] : []),
+    { text: `Nama : ${order.customerName || '-'}` },
+    { text: `order #${order.orderId}` },
     { text: '', separator: true },
   ];
 
   for (const item of order.items) {
-    lines.push({ text: `${item.qty}x ${item.name}`, bold: true });
+    lines.push({ text: `${item.name} ( ${item.qty} x )`, bold: true });
     if (item.notes) {
       lines.push({
-        text: order.largeNotes ? `  ** ${item.notes.toUpperCase()} **` : `  - ${item.notes}`,
+        text: `Catatan : ${item.notes}`,
         bold: !!order.largeNotes,
       });
     }
@@ -437,10 +462,13 @@ export function buildDapurTicket(order: {
 export function buildBaristaTicket(order: {
   orderId: string;
   tableNo?: string;
+  customerName?: string;
+  queueNo?: string;
   item: { name: string; size?: string; sugar?: string; ice?: string; mood?: string; notes?: string };
   itemIndex: number;
   totalItems: number;
   stickerMode?: boolean;
+  qty?: number;
 }): ReceiptData {
   if (order.stickerMode) {
     // Format kotak kecil (50mm thermal / label)
@@ -459,21 +487,22 @@ export function buildBaristaTicket(order: {
     };
   }
 
+  let tipe = [];
+  if (order.item.mood) tipe.push(order.item.mood);
+  if (order.item.ice) tipe.push(order.item.ice);
+
   return {
     lines: [
       { text: '-- TIKET BARISTA --', align: 'center', bold: true },
-      { text: order.tableNo ? `MEJA ${order.tableNo}` : 'TAKE AWAY', align: 'center', bold: true, size: 'double-height' },
-      { text: `Order #${order.orderId}   ${order.itemIndex}/${order.totalItems}`, align: 'center' },
+      { text: order.tableNo ? `MEJA ${order.tableNo}` : 'TAKE AWAY', align: 'center', bold: true, size: 'double' },
       { text: '', separator: true },
-      { text: order.item.name, bold: true, size: 'double-height' },
-      { text: `Ukuran : ${order.item.size ?? '-'}` },
-      { text: `Mode   : ${order.item.mood ?? '-'}` },
-      { text: `Gula   : ${order.item.sugar ?? 'Normal'}` },
-      { text: `Es     : ${order.item.ice ?? 'Normal'}` },
-      ...(order.item.notes ? [
-        { text: '', separator: true } as ReceiptLine,
-        { text: `CATATAN: ${order.item.notes}`, bold: true } as ReceiptLine,
-      ] : []),
+      ...(order.queueNo ? [{ text: `Antrian : ${order.queueNo}`, bold: true } as ReceiptLine] : []),
+      { text: `Nama : ${order.customerName || '-'}` },
+      { text: `order #${order.orderId}` },
+      { text: '', separator: true },
+      { text: `${order.item.name} ( ${order.qty || 1} x )`, bold: true },
+      ...(tipe.length > 0 ? [{ text: `tipe : ( ${tipe.join('/').toLowerCase()} )` } as ReceiptLine] : []),
+      ...(order.item.notes ? [{ text: `Catatan : ${order.item.notes}`, bold: true } as ReceiptLine] : []),
     ],
     feedLines: 2,
     cut: true,

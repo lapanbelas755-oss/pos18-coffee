@@ -112,6 +112,7 @@ app.get('/api/qris/status/:order_id', async (req, res) => {
       }
     });
     const data = await response.json();
+    console.log(`Status check for ${order_id}:`, data.transaction_status || data);
     
     if (response.ok && (data.transaction_status === 'settlement' || data.transaction_status === 'capture')) {
       res.json({ success: true, status: data.transaction_status });

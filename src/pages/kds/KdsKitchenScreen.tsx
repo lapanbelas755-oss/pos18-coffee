@@ -111,8 +111,8 @@ export default function KdsKitchenScreen() {
         const newestOrder = activeOrders[activeOrders.length - 1];
         if (newestOrder) {
           const itemsForPrint = newestOrder.items.map(it => ({
-            name: it.name,
-            qty: 1,
+            name: `${it.qty || 1}x ${it.name}`,
+            qty: it.qty || 1,
             notes: it.notes
           }));
           const rawTable = newestOrder.table;
@@ -123,6 +123,8 @@ export default function KdsKitchenScreen() {
           const ticketBytes = buildDapurTicket({
             orderId: newestOrder.id.replace('INV-', ''),
             tableNo: tableName || undefined,
+            customerName: newestOrder.customer_name,
+            queueNo: newestOrder.queue,
             items: itemsForPrint
           });
           printReceipt(ticketBytes, "Dapur").catch(() => {});
@@ -206,7 +208,13 @@ export default function KdsKitchenScreen() {
     const dData = buildDapurTicket({
       orderId: order.id.split('-').slice(0, 2).join('-') + " (REPRINT)",
       tableNo: displayTable,
-      items: order.items.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
+      customerName: order.customer_name,
+      queueNo: order.queue,
+      items: order.items.map(it => ({
+        name: `${it.qty || 1}x ${it.name}`,
+        qty: it.qty || 1,
+        notes: it.notes
+      }))
     });
     printReceipt(dData, "Dapur").catch(() => {});
   };

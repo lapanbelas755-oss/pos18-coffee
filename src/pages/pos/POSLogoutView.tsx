@@ -6,12 +6,23 @@ export default function POSLogoutView() {
   const navigate = useNavigate();
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
+  const [showShiftAlert, setShowShiftAlert] = useState(false);
   const { login, logout } = useAuthStore();
 
   // Pastikan user benar-benar logout saat masuk ke halaman ini
   useEffect(() => {
+    const savedShift = localStorage.getItem("current_shift");
+    if (savedShift) {
+      try {
+        const shiftData = JSON.parse(savedShift);
+        if (shiftData.isOpen) {
+          setShowShiftAlert(true);
+          return;
+        }
+      } catch (e) {}
+    }
     logout();
-  }, [logout]);
+  }, [logout, navigate]);
 
   const handleNumpad = (num: string) => {
     if (pin.length < 4) {
@@ -100,6 +111,30 @@ export default function POSLogoutView() {
         </div>
         
       </div>
+
+      {/* Custom Alert Modal for Shift */}
+      {showShiftAlert && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col items-center p-8 text-center animate-slide-up">
+            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
+              <span className="material-symbols-outlined text-4xl text-red-500">lock</span>
+            </div>
+            <h3 className="text-2xl font-extrabold text-slate-800 mb-2">Akses Ditolak</h3>
+            <p className="text-slate-500 font-medium mb-8 text-sm">
+              Anda wajib <b>menutup shift</b> terlebih dahulu sebelum dapat melakukan proses logout.
+            </p>
+            <button
+              onClick={() => {
+                setShowShiftAlert(false);
+                navigate("/pos/shift");
+              }}
+              className="w-full py-3.5 bg-[#4d3227] text-white rounded-xl font-bold hover:bg-[#3a251d] transition-colors shadow-lg shadow-[#4d3227]/30"
+            >
+              Ke Menu Shift
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

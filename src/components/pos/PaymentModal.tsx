@@ -128,9 +128,11 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
           if (data.success && (data.status === 'settlement' || data.status === 'capture')) {
             clearInterval(interval);
             if (activeTab === "Penuh") {
+              isSuccessRef.current = true;
               onSuccess("QRIS", finalTotal, 0, appliedPromo); // Sukses & Otomatis Selesai
             } else if (activeTab === "Item") {
               if (selectedItemIds.length > 0 && onPartialSuccess) {
+                isSuccessRef.current = true;
                 onPartialSuccess("QRIS", selectedItems);
               }
             } else if (activeTab === "Split") {

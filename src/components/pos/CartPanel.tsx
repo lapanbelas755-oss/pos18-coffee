@@ -175,9 +175,7 @@ export default function CartPanel({
                         const isDrink = ["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase());
                         const parts = [];
                         if (isDrink) {
-                          if (item.selectedMood) parts.push(item.selectedMood === "Cold" ? "Dingin" : "Panas");
-                          if (item.selectedIce) parts.push(`Es: ${item.selectedIce}`);
-                          if (item.selectedSugar) parts.push(`Gula: ${item.selectedSugar}`);
+                          if (item.selectedMood) parts.push(item.selectedMood === "Cold" || item.selectedMood === "Ice" ? "Dingin" : "Panas");
                         }
                         return parts.filter(Boolean).join(" · ");
                       })()}
@@ -283,59 +281,25 @@ export default function CartPanel({
 
 
               {/* Mood Selection (Coffee/Drinks Only) */}
-              {(editingItem.product.category === "COFFEE" || editingItem.product.category === "NON-COFFEE" || editingItem.product.category === "TEA" || editingItem.product.category === "SIGNATURE") && (
+              {(editingItem.product.category === "COFFEE" || editingItem.product.category === "NON-COFFEE" || editingItem.product.category === "TEA" || editingItem.product.category === "SIGNATURE") && editingItem.product.moods && editingItem.product.moods.length > 0 && (
                 <>
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Tipe Minuman</label>
                     <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    type="button"
-                    onClick={() => setEditingItem({...editingItem, selectedMood: "Hot"})}
-                    className={`py-2 rounded-xl text-sm font-bold border-2 transition-all ${editingItem.selectedMood === "Hot" ? "border-[#4a2d21] bg-[#4a2d21] text-white" : "border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
-                  >Hot</button>
-                  <button 
-                    type="button"
-                    onClick={() => setEditingItem({...editingItem, selectedMood: "Cold"})}
-                    className={`py-2 px-2 flex flex-col items-center justify-center rounded-xl text-sm font-bold border-2 transition-all gap-1 ${editingItem.selectedMood === "Cold" ? "border-blue-600 bg-blue-600 text-white" : "border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
-                  >
-                    <span>Ice (Cold)</span>
-                    {editingItem.product.priceModifiers?.Cold ? (
-                      <span className={`text-[10px] leading-none ${editingItem.selectedMood === "Cold" ? "text-white/80" : "text-blue-600"}`}>
-                        +Rp{(editingItem.product.priceModifiers.Cold).toLocaleString('id-ID')}
-                      </span>
-                    ) : null}
-                  </button>
-                </div>
-              </div>
-
-              {/* Ice Level (Hanya jika Cold) */}
-              {editingItem.selectedMood === "Cold" && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Level Es</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {editingItem.product.ices.map(ice => (
-                      <button 
-                        key={ice}
-                        type="button"
-                        onClick={() => setEditingItem({...editingItem, selectedIce: ice})}
-                        className={`py-2 rounded-xl text-xs font-bold border-2 transition-all ${editingItem.selectedIce === ice ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
-                      >{ice}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-                  {/* Sugar Level */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Level Gula</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {editingItem.product.sugars.map(sugar => (
+                      {editingItem.product.moods.map((mood) => (
                         <button 
-                          key={sugar}
+                          key={mood}
                           type="button"
-                          onClick={() => setEditingItem({...editingItem, selectedSugar: sugar})}
-                          className={`py-2 px-1 text-center rounded-xl text-xs font-bold border-2 transition-all ${editingItem.selectedSugar === sugar ? "border-[#4a2d21] bg-[#f5efe9] text-[#4a2d21]" : "border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
-                        >{sugar}</button>
+                          onClick={() => setEditingItem({...editingItem, selectedMood: mood})}
+                          className={`py-2 px-2 flex flex-col items-center justify-center rounded-xl text-sm font-bold border-2 transition-all gap-1 ${editingItem.selectedMood === mood ? (mood === "Cold" || mood === "Ice" ? "border-blue-600 bg-blue-600 text-white" : "border-[#4a2d21] bg-[#4a2d21] text-white") : "border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
+                        >
+                          <span>{mood === "Cold" || mood === "Ice" ? "Ice (Cold)" : mood}</span>
+                          {editingItem.product.priceModifiers?.[mood] ? (
+                            <span className={`text-[10px] leading-none ${editingItem.selectedMood === mood ? "text-white/80" : (mood === "Cold" || mood === "Ice" ? "text-blue-600" : "text-[#4a2d21]")}`}>
+                              +Rp{(editingItem.product.priceModifiers[mood]).toLocaleString('id-ID')}
+                            </span>
+                          ) : null}
+                        </button>
                       ))}
                     </div>
                   </div>
