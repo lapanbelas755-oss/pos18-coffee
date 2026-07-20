@@ -246,12 +246,44 @@ export function getConnectedPrinter(role: string): PrinterDevice | null {
   return connectedPrinters[role] || null;
 }
 
+// ─── Print Queue (Untuk mencegah error "GATT operation already in progress" bila menggunakan printer yang sama)
+let isPrinting = false;
+const printQueue: (() => Promise<void>)[] = [];
+
+async function processQueue() {
+  if (isPrinting || printQueue.length === 0) return;
+  isPrinting = true;
+  while (printQueue.length > 0) {
+    const job = printQueue.shift();
+    if (job) {
+      try {
+        await job();
+        // Beri jeda 1 detik antar struk agar buffer printer tidak tumpang tindih
+        await new Promise(r => setTimeout(r, 1000));
+      } catch (err) {
+        console.error("Print job failed:", err);
+      }
+    }
+  }
+  isPrinting = false;
+}
+
 /** Cetak dokumen (ReceiptData) ke printer yang aktif */
-export async function printReceipt(data: ReceiptData, role: string): Promise<void> {
-  const printer = connectedPrinters[role];
-  if (!printer) throw new Error(`Tidak ada printer yang terhubung untuk ${role}.`);
-  const buffer = buildBuffer(data);
-  await writeChunked(printer.characteristic, buffer);
+export function printReceipt(data: ReceiptData, role: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    printQueue.push(async () => {
+      try {
+        const printer = connectedPrinters[role];
+        if (!printer) throw new Error(`Tidak ada printer yang terhubung untuk ${role}.`);
+        const buffer = buildBuffer(data);
+        await writeChunked(printer.characteristic, buffer);
+        resolve();
+      } catch (e) {
+        reject(e);
+      }
+    });
+    processQueue();
+  });
 }
 
 /** Test print untuk memverifikasi koneksi printer */

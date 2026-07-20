@@ -56,9 +56,7 @@ export default function POSOnlineView({ posOrders, setPosOrders, onNotify }: POS
       const baristaItems = baristaCart.map((item, idx) => ({
         id: `pos-${ticketId}-B-${idx}`,
         name: `${item.quantity}x ${item.product.name}`,
-        notes: (["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase()))
-          ? `${item.selectedSize} · Ice: ${item.selectedIce} · Sugar: ${item.selectedSugar} ${item.notes ? `(${item.notes})` : ""}`
-          : `${item.selectedSize} ${item.notes ? `(${item.notes})` : ""}`,
+        notes: [item.selectedMood, item.notes].filter(Boolean).join(" - "),
         checked: false
       }));
 

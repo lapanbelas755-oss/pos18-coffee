@@ -200,6 +200,32 @@ export default function KdsBaristaScreen() {
 
   const handleLogout = () => { logout(); navigate('/kds'); };
 
+  const handleManualPrint = (order: KdsOrder) => {
+    if (!isPrinterConnected) {
+      alert("Printer Barista belum terhubung! Silakan klik 'Konek Printer' di pojok kanan atas.");
+      return;
+    }
+    const displayTable = (() => {
+      const rawTable = order.table;
+      if (rawTable && rawTable.startsWith('table-')) {
+        const foundTab = tables.find(t => t.id === rawTable);
+        return foundTab ? foundTab.name : rawTable;
+      }
+      return rawTable || order.type;
+    })();
+
+    order.items.forEach((item, index) => {
+      const bData = buildBaristaTicket({
+        orderId: order.id.split('-').slice(0, 2).join('-') + " (REPRINT)",
+        tableNo: displayTable,
+        item: { name: item.name, notes: item.notes },
+        itemIndex: index + 1,
+        totalItems: order.items.length,
+      });
+      printReceipt(bData, "Barista").catch(() => {});
+    });
+  };
+
   const pending = activeOrders.filter(o => o.status !== 'urgent').length;
   const urgent  = activeOrders.filter(o => o.status === 'urgent').length;
 
@@ -316,6 +342,13 @@ export default function KdsBaristaScreen() {
                       </div>
                     </div>
                     <div className="text-right flex items-center gap-2">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleManualPrint(order); }}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white/70 transition-colors mr-2"
+                        title="Cetak Ulang Checker"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">print</span>
+                      </button>
                       {order.status === 'working' && (
                         <span className="relative flex items-center justify-center w-6 h-6 shrink-0 bg-white/10 rounded-lg">
                           <svg className="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

@@ -46,25 +46,31 @@ function IdleScreen() {
   const timeStr = time.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const dateStr = time.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   return (
-    <div className="cd-idle">
-      <div className="cd-blob cd-blob-1" /><div className="cd-blob cd-blob-2" /><div className="cd-blob cd-blob-3" />
-      <div className="cd-idle-content">
-        <div className="cd-logo-ring"><span className="cd-logo-icon">☕</span></div>
-        <h1 className="cd-brand">Lapanbelas Coffee</h1>
-        <p className="cd-tagline">Where Every Cup Tells a Story</p>
-        <div className="cd-clock-box">
-          <div className="cd-time">{timeStr}</div>
-          <div className="cd-date">{dateStr}</div>
+    <div className="cd-idle-wrapper">
+      <div className="cd-idle-image-layout">
+        <img src="/makanan lb coffee.jpg" alt="Menu Makanan" className="cd-idle-image-half" />
+        <img src="/minuman LB coffee.jpg" alt="Menu Minuman" className="cd-idle-image-half" />
+      </div>
+      <div className="cd-idle">
+        <div className="cd-blob cd-blob-1" /><div className="cd-blob cd-blob-2" /><div className="cd-blob cd-blob-3" />
+        <div className="cd-idle-content">
+          <div className="cd-logo-ring"><span className="cd-logo-icon">☕</span></div>
+          <h1 className="cd-brand">Lapanbelas Coffee</h1>
+          <p className="cd-tagline">Where Every Cup Tells a Story</p>
+          <div className="cd-clock-box">
+            <div className="cd-time">{timeStr}</div>
+            <div className="cd-date">{dateStr}</div>
+          </div>
+          <div className="cd-promo-carousel">
+            {promos.map((p, i) => (
+              <div key={i} className={`cd-promo-slide ${i === activePromo ? "cd-promo-active" : ""}`}>
+                <span className="cd-promo-emoji">{p.emoji}</span>
+                <p className="cd-promo-text">{p.text}</p>
+              </div>
+            ))}
+          </div>
+          <p className="cd-waiting-hint">Silakan pesan di kasir — tampilan ini akan otomatis berubah saat Anda memesan</p>
         </div>
-        <div className="cd-promo-carousel">
-          {promos.map((p, i) => (
-            <div key={i} className={`cd-promo-slide ${i === activePromo ? "cd-promo-active" : ""}`}>
-              <span className="cd-promo-emoji">{p.emoji}</span>
-              <p className="cd-promo-text">{p.text}</p>
-            </div>
-          ))}
-        </div>
-        <p className="cd-waiting-hint">Silakan pesan di kasir — tampilan ini akan menampilkan ringkasan pesanan Anda</p>
       </div>
     </div>
   );
@@ -336,7 +342,16 @@ export default function CustomerDisplay() {
     <>
       <style>{CSS}</style>
       <div className="cd-root">
-        <div className="cd-screen">{renderScreen()}</div>
+        <div className="cd-split-layout">
+          <div className="cd-split-left">
+            <div className="cd-menu-images-container">
+              <img src="/display.png" alt="Menu Display" className="cd-menu-image-full" />
+            </div>
+          </div>
+          <div className="cd-split-right">
+            {renderScreen()}
+          </div>
+        </div>
         <div className="cd-bottom-bar">
           <span>☕ Lapanbelas Coffee — Customer Display</span>
           <span className="cd-bottom-live"><span className="cd-live-dot" />LIVE</span>
@@ -359,7 +374,28 @@ const CSS = `
     width: 100vw; height: 100vh;
     background: #0a0a0f; overflow: hidden;
   }
-  .cd-screen { flex: 1; overflow: hidden; position: relative; min-height: 0; }
+  .cd-split-layout {
+    flex: 1; display: flex; width: 100%; min-height: 0; overflow: hidden;
+  }
+  .cd-split-left {
+    flex: 6; /* 60% width */
+    background: #000;
+    display: flex; align-items: center; justify-content: center;
+    border-right: 1px solid rgba(255,255,255,0.1);
+    padding: 0;
+  }
+  .cd-menu-images-container {
+    width: 100%; height: 100%;
+    display: flex; justify-content: center; align-items: center; gap: 0;
+  }
+  .cd-menu-image-full {
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .cd-split-right {
+    flex: 4; /* 40% width */
+    display: flex; flex-direction: column; position: relative; overflow: hidden;
+  }
+  .cd-screen { flex: 1; overflow: hidden; position: relative; min-height: 0; display: flex; flex-direction: column; }
 
   /* ── Bottom Bar ── */
   .cd-bottom-bar {
@@ -445,6 +481,18 @@ const CSS = `
     .cd-promo-text { font-size: 15px; }
     .cd-idle-content { gap: 20px; max-width: 640px; }
     .cd-waiting-hint { font-size: 13px; max-width: 400px; }
+  }
+
+  /* ══════════════════════════════
+     REMOVED OLD IDLE IMAGE LAYOUT
+  ══════════════════════════════ */
+
+  @media (max-width: 768px) {
+    .cd-split-layout { flex-direction: column; }
+    .cd-split-left { flex: 1; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .cd-split-right { flex: 1; }
+    .cd-menu-images-container { flex-direction: column; }
+    .cd-menu-image-half { max-width: 100%; height: 50%; }
   }
 
   /* ══════════════════════════════

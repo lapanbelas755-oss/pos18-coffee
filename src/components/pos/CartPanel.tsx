@@ -242,12 +242,12 @@ export default function CartPanel({
         </div>
 
         <div className="flex flex-col gap-2">
-          {activeTableId && cart.length > 0 && (
+          {cart.length > 0 && (
             <button
               onClick={() => onSaveOrder?.(customerName)}
               className="w-full py-2.5 bg-amber-100 text-amber-700 hover:bg-amber-200 rounded-xl font-bold uppercase tracking-wide transition-all text-sm"
             >
-              Simpan Pesanan Meja
+              Simpan Pesanan
             </button>
           )}
           <button

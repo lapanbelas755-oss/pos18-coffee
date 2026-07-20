@@ -425,9 +425,7 @@ export default function PosApp() {
         const baristaItems = baristaCart.map((item, idx) => ({
           id: `pos-${ticketId}-B-${idx}`,
           name: `${item.quantity}x ${item.product.name}`,
-          notes: (["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase()))
-            ? `${item.selectedSize} · Ice: ${item.selectedIce} · Sugar: ${item.selectedSugar} ${item.notes ? `(${item.notes})` : ""}`
-            : `${item.selectedSize} ${item.notes ? `(${item.notes})` : ""}`,
+          notes: [item.selectedMood, item.notes].filter(Boolean).join(" - "),
           checked: false
         }));
 
@@ -472,9 +470,7 @@ export default function PosApp() {
         const kitchenItems = kitchenCart.map((item, idx) => ({
           id: `pos-${ticketId}-K-${idx}`,
           name: `${item.quantity}x ${item.product.name}`,
-          notes: (["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase()))
-            ? `${item.selectedSize} · Ice: ${item.selectedIce} · Sugar: ${item.selectedSugar} ${item.notes ? `(${item.notes})` : ""}`
-            : `${item.selectedSize} ${item.notes ? `(${item.notes})` : ""}`,
+          notes: [item.selectedMood, item.notes].filter(Boolean).join(" - "),
           checked: false
         }));
 
@@ -953,9 +949,7 @@ export default function PosApp() {
           const baristaItems = baristaCart.map((item, idx) => ({
             id: `pos-${ticketId}-B-${suffixId}-${idx}`,
             name: `${item.quantity}x ${item.product.name}`,
-            notes: (["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase()))
-              ? `${item.selectedSize} · Ice: ${item.selectedIce} · Sugar: ${item.selectedSugar} ${item.notes ? `(${item.notes})` : ""}`
-              : `${item.selectedSize} ${item.notes ? `(${item.notes})` : ""}`,
+            notes: [item.selectedMood, item.notes].filter(Boolean).join(" - "),
             checked: false
           }));
 
@@ -999,9 +993,7 @@ export default function PosApp() {
           const kitchenItems = kitchenCart.map((item, idx) => ({
             id: `pos-${ticketId}-K-${suffixId}-${idx}`,
             name: `${item.quantity}x ${item.product.name}`,
-            notes: (["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase()))
-              ? `${item.selectedSize} · Ice: ${item.selectedIce} · Sugar: ${item.selectedSugar} ${item.notes ? `(${item.notes})` : ""}`
-              : `${item.selectedSize} ${item.notes ? `(${item.notes})` : ""}`,
+            notes: [item.selectedMood, item.notes].filter(Boolean).join(" - "),
             checked: false
           }));
 
@@ -1099,31 +1091,117 @@ export default function PosApp() {
     const subtotal = order.items.reduce((sum, item) => sum + calculateItemUnitPrice(item) * item.quantity, 0);
     const tax = order.total - subtotal;
 
-    setPrintedReceiptDetails({
-      orderId: order.id,
-      items: order.items.map(item => {
-        const isDrink = ["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase());
-        const nameDesc = isDrink && item.selectedMood ? `${item.product.name} (${item.selectedMood})` : item.product.name;
-        return {
-          name: nameDesc,
-          qty: item.quantity,
-          price: calculateItemUnitPrice(item),
-          notes: item.notes
-        };
-      }),
-      subtotal,
-      discount: 0, // Order history currently doesn't save discount info in posStore structure, but we can update it if needed. Mocking 0 for now.
-      discountName: undefined,
-      tax,
-      total: order.total,
-      customerName: order.customerName,
-      paymentMethod: order.payment,
-      amountGiven: order.amountGiven,
-      change: order.change,
-      queue: order.queue,
-      table: order.table && order.table !== "-" ? tables.find(t => t.id === order.table)?.name || order.table : undefined
+    const itemsForReceipt = order.items.map(item => {
+      const isDrink = ["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase());
+      const nameDesc = isDrink && item.selectedMood ? `${item.product.name} (${item.selectedMood})` : item.product.name;
+      return {
+        name: nameDesc,
+        qty: item.quantity,
+        price: calculateItemUnitPrice(item),
+        notes: item.notes
+      };
     });
-    setShowReceiptModal(true);
+
+    const tableName = order.table && order.table !== "-" ? tables.find(t => t.id === order.table)?.name || order.table : undefined;
+
+    if (connectedPrinters.kasir) {
+      let storeName = "Lb coffee";
+      let storeAddress = "Aceh Tamiang";
+      const savedProfile = localStorage.getItem("pos_store_profile");
+      if (savedProfile) {
+        try {
+          const p = JSON.parse(savedProfile);
+          if (p.namaToko) storeName = p.namaToko;
+          if (p.alamatLengkap) storeAddress = p.alamatLengkap;
+        } catch (e) { }
+      }
+
+      const dataToPrint = buildKasirReceipt({
+        storeName,
+        storeAddress,
+        cashierName: currentUser?.name.split(' ')[0] || "Kasir",
+        tableNo: tableName,
+        items: itemsForReceipt.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
+        total: order.total,
+        paid: order.amountGiven || order.total,
+        change: order.change || 0,
+        paymentMethod: order.payment || "UNKNOWN",
+      });
+      printReceipt(dataToPrint, "Kasir").catch(() => { });
+    } else {
+      setPrintedReceiptDetails({
+        orderId: order.id,
+        items: itemsForReceipt,
+        subtotal,
+        discount: 0,
+        discountName: undefined,
+        tax,
+        total: order.total,
+        customerName: order.customerName,
+        paymentMethod: order.payment,
+        amountGiven: order.amountGiven,
+        change: order.change,
+        queue: order.queue,
+        table: tableName
+      });
+      setShowReceiptModal(true);
+    }
+  };
+
+  const handleReprintChecker = (orderId: string) => {
+    const order = posOrders.find(o => o.id === orderId);
+    if (!order) return;
+
+    if (!connectedPrinters.barista && !connectedPrinters.dapur) {
+      triggerToast("Tidak ada printer Checker (Barista/Dapur) yang terhubung di Kasir.", "warning");
+      return;
+    }
+
+    const tableName = order.table && order.table !== "-" ? tables.find(t => t.id === order.table)?.name || order.table : undefined;
+    const ticketId = order.id.replace("INV-", "");
+
+    const isKitchenItem = (category: string) => {
+      const c = category.toLowerCase();
+      return c.includes('food') || c.includes('makanan') || c.includes('snack') || c.includes('pastry');
+    };
+
+    const baristaCart = order.items.filter(i => !isKitchenItem(i.product.category));
+    const kitchenCart = order.items.filter(i => isKitchenItem(i.product.category));
+
+    if (connectedPrinters.barista && baristaCart.length > 0) {
+      const baristaItems = baristaCart.map((item) => ({
+        name: `${item.quantity}x ${item.product.name}`,
+        notes: [item.selectedMood, item.notes].filter(Boolean).join(" - ")
+      }));
+      
+      baristaItems.forEach((item, index) => {
+        const bData = buildBaristaTicket({
+          orderId: ticketId + " (REPRINT)",
+          tableNo: tableName || undefined,
+          item: { name: item.name, notes: item.notes },
+          itemIndex: index + 1,
+          totalItems: baristaItems.length,
+        });
+        printReceipt(bData, "Barista").catch(() => { });
+      });
+      triggerToast("Checker Barista sedang dicetak ulang.", "info");
+    }
+
+    if (connectedPrinters.dapur && kitchenCart.length > 0) {
+      const dData = buildDapurTicket({
+        orderId: ticketId + " (REPRINT)",
+        tableNo: tableName || undefined,
+        items: kitchenCart.map(i => ({ 
+          name: `${i.quantity}x ${i.product.name}`, 
+          qty: 1, 
+          notes: (["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((i.product.category || "").toUpperCase()))
+          ? [i.selectedMood, i.notes].filter(Boolean).join(" - ")
+          : i.notes || ""
+        })),
+      });
+      printReceipt(dData, "Dapur").catch(() => { });
+      triggerToast("Checker Dapur sedang dicetak ulang.", "info");
+    }
   };
 
   return (
@@ -1184,7 +1262,7 @@ export default function PosApp() {
           <Route path="shift" element={<POSShiftView onNotify={triggerToast} posOrders={posOrders} />} />
           <Route path="promo" element={<POSPromoView onNotify={triggerToast} />} />
           <Route path="biaya" element={<POSBiayaView onNotify={triggerToast} />} />
-          <Route path="pesanan" element={<POSOrdersHistoryView posOrders={posOrders} setPosOrders={setPosOrders} tables={tables} setTables={setTables} onNotify={triggerToast} onReprint={handleReprintReceipt} />} />
+          <Route path="pesanan" element={<POSOrdersHistoryView posOrders={posOrders} setPosOrders={setPosOrders} tables={tables} setTables={setTables} onNotify={triggerToast} onReprint={handleReprintReceipt} onReprintChecker={handleReprintChecker} />} />
           <Route path="pengaturan" element={<POSSettingsView onNotify={triggerToast} products={computedProducts} />} />
           <Route path="keluar" element={<POSLogoutView />} />
         </Route>

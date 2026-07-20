@@ -12,13 +12,15 @@ interface POSOrdersHistoryViewProps {
   setTables: React.Dispatch<React.SetStateAction<TableData[]>>;
   onNotify: (msg: string, type?: "success" | "warning" | "info") => void;
   onReprint?: (orderId: string) => void;
+  onReprintChecker?: (orderId: string) => void;
 }
 
-export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, setTables, onNotify, onReprint }: POSOrdersHistoryViewProps) {
+export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, setTables, onNotify, onReprint, onReprintChecker }: POSOrdersHistoryViewProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Semua Status");
   const [dateFilter, setDateFilter] = useState("Hari Ini");
   const [orderToVoid, setOrderToVoid] = useState<string | null>(null);
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
 
   const filteredOrders = useMemo(() => {
     // Determine today's date string in the same format as o.time ("17 Jul 2026")
@@ -174,7 +176,11 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredOrders.map(order => (
-                  <tr key={order.id} className="hover:bg-slate-50 transition-colors">
+                  <tr 
+                    key={order.id}
+                    onClick={() => setSelectedOrderDetails(order)}
+                    className="hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
                     <td className="px-4 py-4 text-sm text-slate-500 font-medium">{order.id}</td>
                     <td className="px-4 py-4 text-sm text-slate-500 text-center">{order.queue}</td>
                     <td className="px-4 py-4 text-sm text-slate-500">{order.staff}</td>
@@ -205,7 +211,7 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
                       Rp{order.total.toLocaleString("id-ID")}
                     </td>
                     <td className="px-4 py-4 text-sm text-slate-500">{order.time}</td>
-                    <td className="px-4 py-4 text-center">
+                    <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                       {order.status === "Unpaid" ? (
                         <div className="flex flex-col gap-1.5 justify-center">
                           <button 
@@ -222,6 +228,14 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
                               Cetak Resi
                             </button>
                           )}
+                          {onReprintChecker && (
+                            <button 
+                              onClick={() => onReprintChecker(order.id)}
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-1.5 rounded-md font-bold text-xs transition-colors w-full shadow-sm"
+                            >
+                              Cetak Checker
+                            </button>
+                          )}
                           <button 
                             onClick={() => setOrderToVoid(order.id)}
                             className="bg-[#d63f5d] hover:bg-rose-600 text-white px-4 py-1.5 rounded-md font-bold text-xs transition-colors w-full shadow-sm"
@@ -232,12 +246,22 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
                       ) : (
                         <div className="flex justify-center gap-2">
                           {onReprint ? (
-                            <button 
-                              onClick={() => onReprint(order.id)}
-                              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-1.5 rounded-md font-bold text-xs transition-colors shadow-sm whitespace-nowrap"
-                            >
-                              Cetak Resi
-                            </button>
+                            <div className="flex flex-col gap-1.5">
+                              <button 
+                                onClick={() => onReprint(order.id)}
+                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-1.5 rounded-md font-bold text-xs transition-colors shadow-sm whitespace-nowrap"
+                              >
+                                Cetak Resi
+                              </button>
+                              {onReprintChecker && (
+                                <button 
+                                  onClick={() => onReprintChecker(order.id)}
+                                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-1.5 rounded-md font-bold text-xs transition-colors shadow-sm whitespace-nowrap"
+                                >
+                                  Cetak Checker
+                                </button>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-slate-400 font-medium">—</span>
                           )}
@@ -285,6 +309,70 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
             handlePaymentSuccess(method);
           }}
         />
+      )}
+      {/* Order Details Modal */}
+      {selectedOrderDetails && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                  <span className="material-symbols-outlined text-xl">receipt_long</span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800">Detail Pesanan</h3>
+                  <p className="text-xs text-slate-500">{selectedOrderDetails.id}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedOrderDetails(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            
+            <div className="p-6 max-h-[60vh] overflow-y-auto no-scrollbar">
+              <div className="space-y-4">
+                {selectedOrderDetails.items.map((item, idx) => (
+                  <div key={idx} className="flex gap-4">
+                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-slate-600 text-sm shrink-0">
+                      {item.quantity}x
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-slate-800 text-sm">{item.product.name}</div>
+                      {(item.selectedMood || item.notes) && (
+                        <div className="mt-1 flex flex-col gap-0.5">
+                          {item.selectedMood && (
+                            <span className="text-xs font-medium text-amber-600 flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-amber-600"></span>
+                              {item.selectedMood}
+                            </span>
+                          )}
+                          {item.notes && (
+                            <span className="text-xs text-slate-500 italic flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                              Note: {item.notes}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <button 
+                onClick={() => setSelectedOrderDetails(null)}
+                className="px-6 py-2 rounded-xl font-bold text-sm bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -181,6 +181,28 @@ export default function KdsKitchenScreen() {
     await supabase.from('kds_orders').update({ status: 'working' }).eq('id', orderId);
   }, [kdsOrders, setKdsOrders]);
 
+  const handleManualPrint = (order: KdsOrder) => {
+    if (!isPrinterConnected) {
+      alert("Printer Dapur belum terhubung! Silakan klik 'Konek Printer' di pojok kanan atas.");
+      return;
+    }
+    const displayTable = (() => {
+      const rawTable = order.table;
+      if (rawTable && rawTable.startsWith('table-')) {
+        const foundTab = tables.find(t => t.id === rawTable);
+        return foundTab ? foundTab.name : rawTable;
+      }
+      return rawTable || order.type;
+    })();
+
+    const dData = buildDapurTicket({
+      orderId: order.id.split('-').slice(0, 2).join('-') + " (REPRINT)",
+      tableNo: displayTable,
+      items: order.items.map(i => ({ name: i.name, qty: 1, notes: i.notes })),
+    });
+    printReceipt(dData, "Dapur").catch(() => {});
+  };
+
   const urgentOrders = activeOrders.filter(o => o.status === 'urgent');
 
   return (
@@ -277,6 +299,13 @@ export default function KdsKitchenScreen() {
                       <p className="text-white/60 text-xs mt-1">#{order.id} · {order.type}</p>
                     </div>
                     <div className="text-right flex items-center gap-3">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleManualPrint(order); }}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white/80 transition-colors"
+                        title="Cetak Ulang Checker"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">print</span>
+                      </button>
                       {(order.status === 'working' || order.status === 'urgent') && (
                         <span className="relative flex items-center justify-center w-8 h-8 shrink-0 bg-white/10 rounded-xl">
                           <svg className="w-5 h-5 text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

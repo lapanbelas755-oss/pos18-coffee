@@ -55,12 +55,12 @@ export default function ProductMenu({
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex flex-col gap-2">
         <div className="flex items-center gap-3">
           {/* Category Tabs */}
-          <div className="flex items-center gap-2 flex-1 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto overflow-y-hidden custom-scrollbar pb-1">
             {categories.map(cat => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${
+                className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap shrink-0 transition-all ${
                   selectedCategory === cat
                     ? "bg-primary text-white shadow-md"
                     : "bg-white text-slate-600 border border-slate-200 hover:border-primary/40 hover:bg-slate-50"
