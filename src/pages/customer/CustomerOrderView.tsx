@@ -155,7 +155,7 @@ export default function CustomerOrderView() {
           selectedSize: product.sizes[0] || "M",
           selectedSugar: product.sugars[0] || "Normal",
           selectedIce: product.ices[0] || "Normal",
-          selectedMood: product.moods[0] || "Cold",
+          selectedMood: product.moods && product.moods.length > 0 ? product.moods[0] : "",
           notes: "",
         },
       ];

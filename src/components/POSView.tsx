@@ -27,7 +27,7 @@ export default function POSView({ products, cart, setCart, onPrintBills }: POSVi
       size: prod.sizes[1] || prod.sizes[0] || "M",
       sugar: prod.sugars[1] || prod.sugars[0] || "50%",
       ice: prod.ices[1] || prod.ices[0] || "50%",
-      mood: prod.moods[1] || prod.moods[0] || "Cold"
+      mood: prod.moods && prod.moods.length > 0 ? (prod.moods[1] || prod.moods[0]) : ""
     };
   };
 
