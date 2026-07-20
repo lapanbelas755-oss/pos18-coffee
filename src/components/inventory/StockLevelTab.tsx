@@ -296,15 +296,12 @@ export default function StockLevelTab({ stockItems, setStockItems, wasteLogs = [
           return (
             <div key={item.sku} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative group">
 
-              <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+              <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
                 <button onClick={() => { setSelectedQrItem(item); setShowQrModal(true); }} className="bg-white/90 backdrop-blur text-blue-600 hover:bg-white p-2 rounded-xl shadow-md transition-colors" title="Cetak QR Code">
                   <span className="material-symbols-outlined text-[18px]">qr_code_2</span>
                 </button>
                 <button onClick={() => { setSelectedHistoryItem(item); setShowHistoryModal(true); }} className="bg-white/90 backdrop-blur text-purple-600 hover:bg-white p-2 rounded-xl shadow-md transition-colors" title="Riwayat Edit">
                   <span className="material-symbols-outlined text-[18px]">history</span>
-                </button>
-                <button onClick={() => openEdit(item)} className="bg-white/90 backdrop-blur text-[#4a2d21] hover:bg-white p-2 rounded-xl shadow-md transition-colors">
-                  <span className="material-symbols-outlined text-[18px]">edit</span>
                 </button>
                 <button onClick={() => handleDelete(item.sku, item.name)} className="bg-white/90 backdrop-blur text-red-600 hover:bg-white p-2 rounded-xl shadow-md transition-colors">
                   <span className="material-symbols-outlined text-[18px]">delete</span>
@@ -347,11 +344,11 @@ export default function StockLevelTab({ stockItems, setStockItems, wasteLogs = [
                   <span className="font-black text-slate-800 text-sm">{item.warehouse}</span>
                 </div>
                 <button
-                  onClick={() => handleQuickAdd(item)}
+                  onClick={() => openEdit(item)}
                   className="bg-[#f4ece3] hover:bg-[#e8dccb] text-[#4a2d21] px-4 py-2.5 rounded-xl text-sm font-black flex items-center gap-2 transition-colors shadow-sm"
                 >
-                  <span className="material-symbols-outlined text-[18px]">add_box</span>
-                  Isi (+10)
+                  <span className="material-symbols-outlined text-[18px]">edit</span>
+                  Edit Stok
                 </button>
               </div>
             </div>

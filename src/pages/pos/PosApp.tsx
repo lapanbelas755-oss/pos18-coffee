@@ -376,9 +376,10 @@ export default function PosApp() {
     return { ...rest, customer_name: customerName || null };
   };
 
-  const handlePrintBillsCheckout = async (method: string, amountGiven?: number, change?: number, itemsOverride?: CartItem[]) => {
+  const handlePrintBillsCheckout = async (method: string, amountGiven?: number, change?: number, itemsOverride?: CartItem[], promoOverride?: Promo | null) => {
     isTransitioningToSuccess.current = true;
     const itemsToCheckOut = itemsOverride || cart;
+    const activePromo = promoOverride !== undefined ? promoOverride : checkoutPromo;
     if (itemsToCheckOut.length === 0) return;
 
     // --- CHECK PB1 Tax ---
@@ -401,12 +402,12 @@ export default function PosApp() {
     const subtotal = itemsToCheckOut.reduce((sum, item) => sum + calculateItemUnitPrice(item) * item.quantity, 0);
 
     let discount = 0;
-    if (checkoutPromo) {
-      if (checkoutPromo.type === "Persentase") {
-        discount = (subtotal * checkoutPromo.value) / 100;
-      } else if (checkoutPromo.type === "Nominal") {
-        discount = checkoutPromo.value;
-      } else if (checkoutPromo.type === "Karyawan") {
+    if (activePromo) {
+      if (activePromo.type === "Persentase") {
+        discount = (subtotal * activePromo.value) / 100;
+      } else if (activePromo.type === "Nominal") {
+        discount = activePromo.value;
+      } else if (activePromo.type === "Karyawan") {
         const drink = itemsToCheckOut.find(item =>
           item.product.category.toLowerCase().includes('kopi') ||
           item.product.category.toLowerCase().includes('minuman') ||
@@ -442,7 +443,7 @@ export default function PosApp() {
           notes: item.notes
         };
       }),
-      subtotal, discount, discountName: checkoutPromo ? checkoutPromo.title : undefined, tax, total,
+      subtotal, discount, discountName: activePromo ? activePromo.title : undefined, tax, total,
       paymentMethod: method,
       amountGiven,
       change,
@@ -484,6 +485,10 @@ export default function PosApp() {
         tableNo: receiptData.table,
         queueNo: receiptData.queue,
         items: receiptData.items.map(i => ({ name: i.name, qty: i.qty, price: i.price, mood: i.mood, ice: i.ice, sugar: i.sugar, notes: i.notes })),
+        subtotal: receiptData.subtotal,
+        discount: receiptData.discount,
+        discountName: receiptData.discountName,
+        tax: receiptData.tax,
         total: receiptData.total,
         paid: receiptData.amountGiven || receiptData.total,
         change: receiptData.change || 0,
@@ -823,9 +828,9 @@ export default function PosApp() {
 
     triggerToast(`Pesanan #${ticketId} berhasil dikirim! Pembayaran: ${method}`, "success");
 
-    if (checkoutPromo) {
+    if (activePromo) {
       setPromos(prev => prev.map(p => {
-        if (p.id === checkoutPromo.id) {
+        if (p.id === activePromo.id) {
           if (p.type === "Karyawan") {
             return { ...p, status: "Terpakai", usage: p.usage + 1 };
           }
@@ -1238,6 +1243,9 @@ export default function PosApp() {
         cashierName: currentUser?.name.split(' ')[0] || "Kasir",
         tableNo: tableName,
         items: itemsForReceipt.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
+        subtotal: subtotal,
+        discount: 0,
+        tax: tax,
         total: order.total,
         paid: order.amountGiven || order.total,
         change: order.change || 0,
@@ -1333,11 +1341,11 @@ export default function PosApp() {
               setCheckoutPromo(appliedPromo);
               // Wait for state to update
               setTimeout(() => {
-                handlePrintBillsCheckout(method, amountGiven, change);
+                handlePrintBillsCheckout(method, amountGiven, change, undefined, appliedPromo);
               }, 100);
             } else {
               setCheckoutPromo(null);
-              handlePrintBillsCheckout(method, amountGiven, change);
+              handlePrintBillsCheckout(method, amountGiven, change, undefined, null);
             }
           }}
           onPartialSuccess={(method, paidItems) => {

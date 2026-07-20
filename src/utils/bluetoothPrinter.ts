@@ -368,6 +368,10 @@ export function buildKasirReceipt(order: {
   paid: number;
   change: number;
   paymentMethod: string;
+  subtotal?: number;
+  discount?: number;
+  discountName?: string;
+  tax?: number;
   footerText?: string;
   showWifi?: boolean;
   queueNo?: string;
@@ -399,11 +403,39 @@ export function buildKasirReceipt(order: {
     }
   }
 
+  lines.push({ text: '', separator: true });
+
+  if (order.subtotal !== undefined) {
+    lines.push({ text: `${'Subtotal :'.padEnd(16)}${order.subtotal.toLocaleString('id-ID').padStart(16)}` });
+  }
+
+  if (order.discount !== undefined && order.discount > 0) {
+    const discountLabel = order.discountName ? `Diskon (${order.discountName}):` : 'Diskon :';
+    const discStr = `-${order.discount.toLocaleString('id-ID')}`;
+    if (discountLabel.length > 16) {
+      lines.push({ text: discountLabel });
+      lines.push({ text: `${''.padEnd(16)}${discStr.padStart(16)}` });
+    } else {
+      lines.push({ text: `${discountLabel.padEnd(16)}${discStr.padStart(16)}` });
+    }
+  }
+
+  if (order.tax !== undefined && order.tax > 0) {
+    lines.push({ text: `${'Pajak (PB1) :'.padEnd(16)}${order.tax.toLocaleString('id-ID').padStart(16)}` });
+  }
+
+  lines.push({ text: `${'Total :'.padEnd(16)}${order.total.toLocaleString('id-ID').padStart(16)}`, bold: true });
+
+  const isCash = order.paymentMethod.toLowerCase().includes('cash') || order.paymentMethod.toLowerCase().includes('tunai');
+
+  if (isCash) {
+    lines.push(
+      { text: `${'Bayar :'.padEnd(16)}${order.paid.toLocaleString('id-ID').padStart(16)}` },
+      { text: `${'Kembali :'.padEnd(16)}${order.change.toLocaleString('id-ID').padStart(16)}`, bold: true }
+    );
+  }
+
   lines.push(
-    { text: '', separator: true },
-    { text: `${'Total :'.padEnd(16)}${order.total.toLocaleString('id-ID').padStart(16)}`, bold: true },
-    { text: `${'Bayar :'.padEnd(16)}${order.paid.toLocaleString('id-ID').padStart(16)}` },
-    { text: `${'Kembali :'.padEnd(16)}${order.change.toLocaleString('id-ID').padStart(16)}`, bold: true },
     { text: `Metode : ${order.paymentMethod.toLowerCase()}` },
     { text: '', separator: true },
   );
