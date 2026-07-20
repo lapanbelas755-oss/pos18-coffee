@@ -686,24 +686,28 @@ export default function CustomerOrderView() {
                         <h4 className="font-bold text-slate-800 text-sm leading-tight">{item.product.name}</h4>
                         {item.product.moods && item.product.moods.length > 0 ? (
                           <div className="flex items-center gap-2 mt-2">
-                            <button
-                              onClick={() => handleUpdateMood(item.id, "Hot")}
-                              className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all ${item.selectedMood === "Hot"
-                                  ? "bg-amber-500 text-white border-amber-500 shadow-sm"
-                                  : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
-                                }`}
-                            >
-                              🔥 Hot
-                            </button>
-                            <button
-                              onClick={() => handleUpdateMood(item.id, "Cold")}
-                              className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all ${item.selectedMood === "Cold"
-                                  ? "bg-blue-500 text-white border-blue-500 shadow-sm"
-                                  : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
-                                }`}
-                            >
-                              ❄️ Ice (+2K)
-                            </button>
+                            {item.product.moods.includes("Hot") && (
+                              <button
+                                onClick={() => handleUpdateMood(item.id, "Hot")}
+                                className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all ${item.selectedMood === "Hot"
+                                    ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                                    : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                                  }`}
+                              >
+                                🔥 Hot
+                              </button>
+                            )}
+                            {item.product.moods.includes("Cold") && (
+                              <button
+                                onClick={() => handleUpdateMood(item.id, "Cold")}
+                                className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all ${item.selectedMood === "Cold"
+                                    ? "bg-blue-500 text-white border-blue-500 shadow-sm"
+                                    : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                                  }`}
+                              >
+                                ❄️ Ice (+2K)
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider font-medium">{item.selectedSize}, {item.selectedIce}</p>
