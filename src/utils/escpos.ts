@@ -73,9 +73,9 @@ export function buildReceiptData(
   // Header
   addCommand(ESC_POS.ALIGN_CENTER);
   addCommand(ESC_POS.BOLD_ON);
-  addLine('LAPANBELAS COFFEE');
+  addLine('Lapanbelas Coffee');
   addCommand(ESC_POS.BOLD_OFF);
-  addLine('POS18 Outlet');
+  addLine('Aceh Tamiang');
   addLine('-'.repeat(charsPerLine));
 
   // Order Info

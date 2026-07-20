@@ -259,7 +259,7 @@ export async function testPrint(role: string): Promise<void> {
   const testData: ReceiptData = {
     lines: [
       { text: '',              align: 'center' },
-      { text: 'LB COFFEE',     align: 'center', bold: true, size: 'double' },
+      { text: 'Lapanbelas Coffee', align: 'center', bold: true, size: 'double' },
       { text: '',              align: 'center' },
       { text: '==============================', align: 'left' },
       { text: `  TEST PRINT ${role.toUpperCase()} BERHASIL!`, align: 'center', bold: true },

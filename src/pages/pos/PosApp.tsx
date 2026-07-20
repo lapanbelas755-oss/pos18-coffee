@@ -378,7 +378,7 @@ export default function PosApp() {
 
     // Bluetooth Printing Logic (KASIR)
     if (connectedPrinters.kasir) {
-      let storeName = "Lapanbelas Coffee";
+      let storeName = "Lb coffee";
       let storeAddress = "Aceh Tamiang";
       const savedProfile = localStorage.getItem("pos_store_profile");
       if (savedProfile) {
@@ -1204,9 +1204,9 @@ export default function PosApp() {
                   {(() => {
                     const saved = localStorage.getItem("pos_store_profile");
                     if (saved) {
-                      try { return JSON.parse(saved).namaToko || "POS18 COFFEE"; } catch (e) { }
+                      try { return JSON.parse(saved).namaToko || "Lb coffee"; } catch (e) { }
                     }
-                    return "POS18 COFFEE";
+                    return "Lb coffee";
                   })()}
                 </p>
                 <p>

@@ -103,7 +103,7 @@ export default function POSOnlineView({ posOrders, setPosOrders, onNotify }: POS
     // 3. Print Kasir Receipt automatically if connected
     if (connectedPrinters.kasir) {
       try {
-        let storeName = "Lapanbelas Coffee";
+        let storeName = "Lb coffee";
         let storeAddress = "Aceh Tamiang";
         const savedProfile = localStorage.getItem("pos_store_profile");
         if (savedProfile) {
