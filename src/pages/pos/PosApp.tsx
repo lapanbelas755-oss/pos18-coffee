@@ -382,7 +382,7 @@ export default function PosApp() {
     if (itemsToCheckOut.length === 0) return;
 
     // --- CHECK PB1 Tax ---
-    let taxRate = 0.11; // Default 11%
+    let taxRate = 0; // Default 0% (Tax is off by default matching initialBiaya settings)
     const savedBiaya = localStorage.getItem("pos_biaya_settings");
     if (savedBiaya) {
       try {
@@ -868,7 +868,7 @@ export default function PosApp() {
             const paidItemIds = new Set(itemsToCheckOut.map(i => i.id));
             const remaining = cart.filter(i => !paidItemIds.has(i.id));
 
-            let taxR = 0.11;
+            let taxR = 0;
             try {
               const savedBiaya = localStorage.getItem("pos_biaya_settings");
               if (savedBiaya) {
@@ -951,7 +951,7 @@ export default function PosApp() {
     if (cart.length > 0) {
       const isDineIn = !!activeTableId;
       // --- CHECK PB1 Tax ---
-      let taxRate = 0.11; // Default 11%
+      let taxRate = 0; // Default 0% (Tax is off by default matching initialBiaya settings)
       const savedBiaya = localStorage.getItem("pos_biaya_settings");
       if (savedBiaya) {
         try {
