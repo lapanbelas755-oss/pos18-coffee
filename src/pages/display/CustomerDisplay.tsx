@@ -46,12 +46,7 @@ function IdleScreen() {
   const timeStr = time.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const dateStr = time.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   return (
-    <div className="cd-idle-wrapper">
-      <div className="cd-idle-image-layout">
-        <img src="/makanan lb coffee.jpg" alt="Menu Makanan" className="cd-idle-image-half" />
-        <img src="/minuman LB coffee.jpg" alt="Menu Minuman" className="cd-idle-image-half" />
-      </div>
-      <div className="cd-idle">
+    <div className="cd-idle">
         <div className="cd-blob cd-blob-1" /><div className="cd-blob cd-blob-2" /><div className="cd-blob cd-blob-3" />
         <div className="cd-idle-content">
           <div className="cd-logo-ring"><span className="cd-logo-icon">☕</span></div>
