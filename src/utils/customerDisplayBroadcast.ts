@@ -34,6 +34,15 @@ export interface CustomerDisplayPayload {
   change?: number;
 }
 
+let remoteChannel: ReturnType<typeof supabase.channel> | null = null;
+function getRemoteChannel() {
+  if (!remoteChannel) {
+    remoteChannel = supabase.channel("public:customer-display");
+    remoteChannel.subscribe();
+  }
+  return remoteChannel;
+}
+
 export function broadcastToDisplay(payload: CustomerDisplayPayload) {
   try {
     // 1. BroadcastChannel — primary (instan, lintas-tab same-origin)
@@ -50,16 +59,9 @@ export function broadcastToDisplay(payload: CustomerDisplayPayload) {
   }
 
   try {
-    // 3. Supabase Realtime — untuk lintas perangkat (Skenario B)
-    // Buat channel baru setiap kali agar tidak zombie saat reconnect
-    const ch = supabase.channel(`display-${Date.now()}`);
-    ch.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        ch.send({ type: "broadcast", event: "display-update", payload });
-        // Tutup setelah 3 detik agar tidak menumpuk
-        setTimeout(() => supabase.removeChannel(ch), 3000);
-      }
-    });
+    // 3. Supabase Realtime — untuk lintas perangkat
+    const ch = getRemoteChannel();
+    ch.send({ type: "broadcast", event: "display-update", payload });
   } catch (e) {
     console.warn("Customer Display remote broadcast failed:", e);
   }
