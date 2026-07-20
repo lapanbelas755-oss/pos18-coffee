@@ -18,7 +18,7 @@ import PaymentModal from "../../components/pos/PaymentModal";
 import { supabase } from "../../lib/supabase";
 import { calculateItemUnitPrice } from "../../utils/pricing";
 import { calculateMaxServings } from "../../utils/inventory";
-import { printReceipt, buildKasirReceipt, buildDapurTicket, buildBaristaTicket } from "../../utils/bluetoothPrinter";
+import { printReceipt, buildKasirReceipt, buildDapurTicket, buildBaristaTicket, reconnectPrinter, isConnected } from "../../utils/bluetoothPrinter";
 import { usePosStore } from "../../store/posStore";
 import { useAuthStore } from "../../store/authStore";
 import { sendTelegramNotification } from "../../utils/telegram";
@@ -30,7 +30,7 @@ interface ToastNotification {
 }
 
 export default function PosApp() {
-  const { promos, setPromos, connectedPrinters } = usePosStore();
+  const { promos, setPromos, connectedPrinters, setPrinterConnected } = usePosStore();
   const { currentUser } = useAuthStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -232,6 +232,41 @@ export default function PosApp() {
       supabase.removeChannel(productsSub);
     };
   }, []);
+
+  // Auto reconnect printers on mount or first user interaction
+  useEffect(() => {
+    const tryReconnect = async () => {
+      const roles = ["Kasir", "Dapur", "Barista"];
+      let reconnected = false;
+      for (const role of roles) {
+        if (!isConnected(role)) {
+          try {
+            const device = await reconnectPrinter(role);
+            if (device) {
+              setPrinterConnected(role.toLowerCase() as any, true);
+              reconnected = true;
+            }
+          } catch (e) {
+            console.warn(`[PosApp tryReconnect] Failed for ${role}:`, e);
+          }
+        }
+      }
+      return reconnected;
+    };
+
+    tryReconnect().then(success => {
+      if (!success) {
+        const handleFirstInteraction = async () => {
+          window.removeEventListener("click", handleFirstInteraction);
+          window.removeEventListener("pointerdown", handleFirstInteraction);
+          console.log("[BT PosApp] User interacted. Retrying auto-reconnect...");
+          await tryReconnect();
+        };
+        window.addEventListener("click", handleFirstInteraction);
+        window.addEventListener("pointerdown", handleFirstInteraction);
+      }
+    });
+  }, [setPrinterConnected]);
 
 
   // Broadcast posOrders to TV Queue Display
@@ -845,7 +880,8 @@ export default function PosApp() {
   };
 
   const handleSaveOrderToTable = (customerName?: string) => {
-    if (activeTableId && cart.length > 0) {
+    if (cart.length > 0) {
+      const isDineIn = !!activeTableId;
       // --- CHECK PB1 Tax ---
       let taxRate = 0.11; // Default 11%
       const savedBiaya = localStorage.getItem("pos_biaya_settings");
@@ -865,22 +901,26 @@ export default function PosApp() {
       const tax = Math.round(subtotal * taxRate);
       const total = subtotal + tax;
 
-      setTables(prev => prev.map(t => {
-        if (t.id === activeTableId) {
-          const updated: TableData = { ...t, status: "Sudah Dipesan", cart: cart, current: 1, customerName: customerName || t.customerName };
-          supabase.from('tables').update({
-            status: "Sudah Dipesan",
-            cart: cart,
-            current: 1,
-            customer_name: updated.customerName || null
-          }).eq('id', t.id).then();
-          return updated;
-        }
-        return t;
-      }));
+      if (isDineIn) {
+        setTables(prev => prev.map(t => {
+          if (t.id === activeTableId) {
+            const updated: TableData = { ...t, status: "Sudah Dipesan", cart: cart, current: 1, customerName: customerName || t.customerName };
+            supabase.from('tables').update({
+              status: "Sudah Dipesan",
+              cart: cart,
+              current: 1,
+              customer_name: updated.customerName || null
+            }).eq('id', t.id).then();
+            return updated;
+          }
+          return t;
+        }));
+      }
 
       // Find existing order BEFORE calling setPosOrders
-      const existingIdx = posOrders.findIndex(o => o.table === activeTableId && o.status === "Unpaid");
+      const existingIdx = isDineIn 
+        ? posOrders.findIndex(o => o.table === activeTableId && o.status === "Unpaid")
+        : -1;
       const existingOrder = existingIdx >= 0 ? posOrders[existingIdx] : null;
       const tableName = activeTableId ? tables.find(t => t.id === activeTableId)?.name : undefined;
 
@@ -912,10 +952,10 @@ export default function PosApp() {
           id: `INV-${ticketId}`,
           queue: ticketId.split('-')[1],
           staff: currentUser?.name.split(' ')[0] || "Kasir",
-          table: activeTableId,
+          table: activeTableId || "-",
           pager: "-",
           customerName: customerName || undefined,
-          type: "Dine In",
+          type: isDineIn ? "Dine In" : "Take Out",
           payment: "Unpaid",
           status: "Unpaid",
           total,
@@ -945,17 +985,17 @@ export default function PosApp() {
         // Use timestamp to prevent KDS ID clashes if adding to existing order
         const suffixId = Date.now().toString().slice(-4);
 
-        if (baristaCart.length > 0) {
+          if (baristaCart.length > 0) {
           const baristaItems = baristaCart.map((item, idx) => ({
             id: `pos-${ticketId}-B-${suffixId}-${idx}`,
             name: `${item.quantity}x ${item.product.name}`,
             notes: [item.selectedMood, item.notes].filter(Boolean).join(" - "),
             checked: false
           }));
-
+          const kdsOrderType = isDineIn ? "Dine In" : "Takeaway";
           kdsOrdersToInsert.push({
             id: `${ticketId}-B-${suffixId}`,
-            type: "Dine In",
+            type: kdsOrderType,
             table: activeTableId || undefined,
             timeInSeconds: 0,
             status: "incoming",
@@ -966,7 +1006,7 @@ export default function PosApp() {
 
           dbPayloadsToInsert.push({
             id: `${ticketId}-B-${suffixId}`,
-            type: "Dine In",
+            type: kdsOrderType,
             table: activeTableId || null,
             time_in_seconds: 0,
             status: "incoming",
@@ -996,10 +1036,10 @@ export default function PosApp() {
             notes: [item.selectedMood, item.notes].filter(Boolean).join(" - "),
             checked: false
           }));
-
+          const kdsOrderType = isDineIn ? "Dine In" : "Takeaway";
           kdsOrdersToInsert.push({
             id: `${ticketId}-K-${suffixId}`,
-            type: "Dine In",
+            type: kdsOrderType,
             table: activeTableId || undefined,
             timeInSeconds: 0,
             status: "incoming",
@@ -1010,7 +1050,7 @@ export default function PosApp() {
 
           dbPayloadsToInsert.push({
             id: `${ticketId}-K-${suffixId}`,
-            type: "Dine In",
+            type: kdsOrderType,
             table: activeTableId || null,
             time_in_seconds: 0,
             status: "incoming",
@@ -1034,10 +1074,10 @@ export default function PosApp() {
           name: `${item.quantity}x ${item.product.name}`,
           checked: false
         }));
-
+        const kdsOrderType = isDineIn ? "Dine In" : "Takeaway";
         kdsOrdersToInsert.push({
           id: `${ticketId}-KSR-${suffixId}`,
-          type: "Dine In",
+          type: kdsOrderType,
           table: activeTableId || undefined,
           timeInSeconds: 0,
           status: "incoming",
@@ -1048,7 +1088,7 @@ export default function PosApp() {
 
         dbPayloadsToInsert.push({
           id: `${ticketId}-KSR-${suffixId}`,
-          type: "Dine In",
+          type: kdsOrderType,
           table: activeTableId || null,
           time_in_seconds: 0,
           status: "incoming",
@@ -1065,7 +1105,11 @@ export default function PosApp() {
         }
       }
 
-      triggerToast(`Pesanan untuk Meja ${tables.find(t => t.id === activeTableId)?.name || activeTableId} berhasil disimpan (Belum dibayar).`, "info");
+      if (isDineIn) {
+        triggerToast(`Pesanan untuk Meja ${tables.find(t => t.id === activeTableId)?.name || activeTableId} berhasil disimpan (Belum dibayar).`, "info");
+      } else {
+        triggerToast(`Pesanan Take Out untuk ${customerName || 'Pelanggan'} berhasil disimpan (Belum dibayar).`, "info");
+      }
       setCart([]);
       setActiveTableId(null);
     }

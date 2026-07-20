@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/authStore';
 import { usePosStore } from '../../store/posStore';
 import { supabase } from '../../lib/supabase';
 import { KdsOrder } from '../../types';
-import { getConnectedPrinter, scanAndConnect, printReceipt, buildDapurTicket } from '../../utils/bluetoothPrinter';
+import { getConnectedPrinter, scanAndConnect, printReceipt, buildDapurTicket, reconnectPrinter } from '../../utils/bluetoothPrinter';
 
 const kdsStyles = `
   @keyframes fry-toss {
@@ -41,10 +41,18 @@ export default function KdsKitchenScreen() {
   const [isConnectingPrinter, setIsConnectingPrinter] = useState(false);
 
   useEffect(() => {
-    const handleDisconnect = () => setPrinterConnected(false);
+    const handleDisconnect = () => setPrinterConnectedState(false);
     window.addEventListener('printer-disconnected', handleDisconnect);
+
+    // Coba reconnect saat pertama kali mount
+    if (!isPrinterConnected) {
+      reconnectPrinter("Dapur").then(device => {
+        if (device) setPrinterConnectedState(true);
+      });
+    }
+
     return () => window.removeEventListener('printer-disconnected', handleDisconnect);
-  }, []);
+  }, [isPrinterConnected]);
 
   const handleConnectPrinter = async () => {
     try {

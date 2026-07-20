@@ -23,6 +23,7 @@ interface DisplayData {
   qrisTimer?: number;
   orderId?: string;
   change?: number;
+  given?: number;
 }
 
 const STORAGE_KEY = "pos_customer_display";
@@ -202,6 +203,20 @@ function PaymentScreen({ data }: { data: DisplayData }) {
           <div className="cd-pay-cash-display">
             <span className="material-symbols-outlined cd-cash-icon">payments</span>
             <p>Bayar Tunai</p>
+            {data.given !== undefined && data.given > 0 && (
+              <div className="cd-cash-amount-box mt-4 w-full text-center">
+                <p className="text-sm text-white/50 mb-1">Uang Diterima</p>
+                <p className="text-3xl font-black text-white">Rp {fmt(data.given)}</p>
+                {data.change !== undefined && (
+                  <div className={`mt-6 p-3 rounded-xl border ${data.change >= 0 ? "bg-emerald-500/20 border-emerald-500/50" : "bg-red-500/20 border-red-500/50"}`}>
+                    <p className={`text-xs ${data.change >= 0 ? "text-emerald-400" : "text-red-400"}`}>Kembalian</p>
+                    <p className={`text-xl font-bold ${data.change >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                      {data.change >= 0 ? `Rp ${fmt(data.change)}` : "Uang Kurang"}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -235,7 +250,7 @@ function SuccessScreen({ data }: { data: DisplayData }) {
             </div>
           ))}
         </div>
-        <p className="cd-success-footer">Selamat menikmati kopi Anda ☕✨</p>
+        <p className="cd-success-footer">Terima kasih, selamat ngopi ☕✨</p>
       </div>
     </div>
   );
@@ -322,6 +337,19 @@ export default function CustomerDisplay() {
     };
   }, []);
 
+  // ── 5. Auto-reset success screen back to idle after 7 seconds ──
+  useEffect(() => {
+    if (displayData.state === "success") {
+      const t = setTimeout(() => {
+        setDisplayData({ state: "idle" });
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ state: "idle" }));
+        } catch {}
+      }, 7000);
+      return () => clearTimeout(t);
+    }
+  }, [displayData.state]);
+
 
   const renderScreen = () => {
     switch (displayData.state) {
@@ -383,7 +411,7 @@ const CSS = `
     display: flex; justify-content: center; align-items: center; gap: 0;
   }
   .cd-menu-image-full {
-    width: 100%; height: 100%; object-fit: cover;
+    width: 100%; height: 100%; object-fit: contain;
   }
   .cd-split-right {
     flex: 4; /* 40% width */

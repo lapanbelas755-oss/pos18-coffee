@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/authStore';
 import { usePosStore } from '../../store/posStore';
 import { supabase } from '../../lib/supabase';
 import { KdsOrder, KdsItem } from '../../types';
-import { getConnectedPrinter, scanAndConnect, printReceipt, buildBaristaTicket } from '../../utils/bluetoothPrinter';
+import { getConnectedPrinter, scanAndConnect, printReceipt, buildBaristaTicket, reconnectPrinter } from '../../utils/bluetoothPrinter';
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -67,10 +67,18 @@ export default function KdsBaristaScreen() {
   const [isConnectingPrinter, setIsConnectingPrinter] = useState(false);
 
   useEffect(() => {
-    const handleDisconnect = () => setPrinterConnected(false);
+    const handleDisconnect = () => setPrinterConnectedState(false);
     window.addEventListener('printer-disconnected', handleDisconnect);
+
+    // Coba reconnect saat pertama kali mount
+    if (!isPrinterConnected) {
+      reconnectPrinter("Barista").then(device => {
+        if (device) setPrinterConnectedState(true);
+      });
+    }
+
     return () => window.removeEventListener('printer-disconnected', handleDisconnect);
-  }, []);
+  }, [isPrinterConnected]);
 
   const handleConnectPrinter = async () => {
     try {

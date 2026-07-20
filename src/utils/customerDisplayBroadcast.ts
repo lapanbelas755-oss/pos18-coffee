@@ -32,6 +32,7 @@ export interface CustomerDisplayPayload {
   qrisTimer?: number;
   orderId?: string;
   change?: number;
+  given?: number;
 }
 
 let remoteChannel: ReturnType<typeof supabase.channel> | null = null;

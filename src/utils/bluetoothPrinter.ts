@@ -119,6 +119,55 @@ async function writeChunked(
 
 // ─── Main API ─────────────────────────────────────────────────────────────────
 
+async function findWritableCharacteristic(server: BluetoothRemoteGATTServer): Promise<BluetoothRemoteGATTCharacteristic | null> {
+  const serviceUUIDs = [
+    '000018f0-0000-1000-8000-00805f9b34fb',
+    '0000ff00-0000-1000-8000-00805f9b34fb',
+    '0000fff0-0000-1000-8000-00805f9b34fb',
+    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+    'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+  ];
+
+  const charUUIDs = [
+    '00002af1-0000-1000-8000-00805f9b34fb',
+    '0000ff02-0000-1000-8000-00805f9b34fb',
+    '0000fff2-0000-1000-8000-00805f9b34fb',
+    '49535343-8841-43f4-a8d4-ecbe34729bb3',
+    'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f',
+  ];
+
+  for (const sUUID of serviceUUIDs) {
+    try {
+      const service = await server.getPrimaryService(sUUID);
+      for (const cUUID of charUUIDs) {
+        try {
+          const ch = await service.getCharacteristic(cUUID);
+          if (ch.properties.write || ch.properties.writeWithoutResponse) {
+            return ch;
+          }
+        } catch { /* try next */ }
+      }
+    } catch { /* try next service */ }
+  }
+
+  // Fallback: try to get all services and look for writable characteristic
+  try {
+    const services = await server.getPrimaryServices();
+    for (const svc of services) {
+      try {
+        const chars = await svc.getCharacteristics();
+        for (const ch of chars) {
+          if (ch.properties.write || ch.properties.writeWithoutResponse) {
+            return ch;
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+
+  return null;
+}
+
 /**
  * Scan dan sambungkan ke printer Bluetooth terdekat.
  * Memunculkan native browser dialog pemilihan perangkat BT.
@@ -154,56 +203,7 @@ export async function scanAndConnect(role: string): Promise<PrinterDevice> {
   });
 
   const server = await device.gatt!.connect();
-
-  // Coba berbagai service UUID umum printer thermal
-  const serviceUUIDs = [
-    '000018f0-0000-1000-8000-00805f9b34fb',
-    '0000ff00-0000-1000-8000-00805f9b34fb',
-    '0000fff0-0000-1000-8000-00805f9b34fb',
-    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-    'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
-  ];
-
-  const charUUIDs = [
-    '00002af1-0000-1000-8000-00805f9b34fb',
-    '0000ff02-0000-1000-8000-00805f9b34fb',
-    '0000fff2-0000-1000-8000-00805f9b34fb',
-    '49535343-8841-43f4-a8d4-ecbe34729bb3',
-    'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f',
-  ];
-
-  let characteristic: BluetoothRemoteGATTCharacteristic | null = null;
-
-  for (const sUUID of serviceUUIDs) {
-    try {
-      const service = await server.getPrimaryService(sUUID);
-      for (const cUUID of charUUIDs) {
-        try {
-          const ch = await service.getCharacteristic(cUUID);
-          if (ch.properties.write || ch.properties.writeWithoutResponse) {
-            characteristic = ch;
-            break;
-          }
-        } catch { /* try next */ }
-      }
-      if (characteristic) break;
-    } catch { /* try next service */ }
-  }
-
-  // Fallback: try to get all services and look for writable characteristic
-  if (!characteristic) {
-    const services = await server.getPrimaryServices();
-    for (const svc of services) {
-      const chars = await svc.getCharacteristics();
-      for (const ch of chars) {
-        if (ch.properties.write || ch.properties.writeWithoutResponse) {
-          characteristic = ch;
-          break;
-        }
-      }
-      if (characteristic) break;
-    }
-  }
+  const characteristic = await findWritableCharacteristic(server);
 
   if (!characteristic) {
     throw new Error('Tidak dapat menemukan karakteristik write di printer ini. Pastikan printer kompatibel ESC/POS.');
@@ -217,6 +217,7 @@ export async function scanAndConnect(role: string): Promise<PrinterDevice> {
   };
 
   connectedPrinters[role] = printerDevice;
+  localStorage.setItem(`printer_${role}`, device.id); // Simpan ID device untuk reconnect
 
   // Listen for disconnect
   device.addEventListener('gattserverdisconnected', () => {
@@ -227,6 +228,52 @@ export async function scanAndConnect(role: string): Promise<PrinterDevice> {
   return printerDevice;
 }
 
+/**
+ * Coba sambungkan kembali ke printer yang tersimpan tanpa prompt.
+ * Memerlukan browser yang mendukung navigator.bluetooth.getDevices() (Chrome >= 85 dengan flag, atau default di Chrome modern)
+ */
+export async function reconnectPrinter(role: string): Promise<PrinterDevice | null> {
+  if (!navigator.bluetooth || typeof (navigator.bluetooth as any).getDevices !== 'function') {
+    return null;
+  }
+
+  const savedDeviceId = localStorage.getItem(`printer_${role}`);
+  if (!savedDeviceId) return null;
+
+  try {
+    const devices = await (navigator.bluetooth as any).getDevices();
+    const device = devices.find((d: any) => d.id === savedDeviceId);
+
+    if (device) {
+      const server = await device.gatt!.connect();
+      const characteristic = await findWritableCharacteristic(server);
+      
+      if (!characteristic) {
+        throw new Error('Tidak dapat menemukan karakteristik write.');
+      }
+
+      const printerDevice: PrinterDevice = {
+        id: device.id,
+        name: device.name || 'Unknown Printer',
+        device,
+        characteristic,
+      };
+
+      connectedPrinters[role] = printerDevice;
+
+      device.addEventListener('gattserverdisconnected', () => {
+        delete connectedPrinters[role];
+        console.log(`Printer ${role} terputus.`);
+      });
+
+      return printerDevice;
+    }
+  } catch (error) {
+    console.error(`Gagal reconnect printer ${role}:`, error);
+  }
+  return null;
+}
+
 /** Disconnect dari printer aktif */
 export function disconnectPrinter(role: string) {
   const printer = connectedPrinters[role];
@@ -234,6 +281,7 @@ export function disconnectPrinter(role: string) {
     printer.device.gatt.disconnect();
   }
   delete connectedPrinters[role];
+  localStorage.removeItem(`printer_${role}`);
 }
 
 /** Cek apakah ada printer yang terhubung */

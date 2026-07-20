@@ -21,6 +21,8 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
   const [showPromoModal, setShowPromoModal] = useState(false);
   const [promoCodeInput, setPromoCodeInput] = useState("");
   const [appliedPromo, setAppliedPromo] = useState<Promo | null>(null);
+  
+  const isSuccessRef = React.useRef(false);
 
   const discountAmount = React.useMemo(() => {
     if (!appliedPromo) return 0;
@@ -69,8 +71,32 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
       total,
       customerName,
     });
-    return () => clearDisplay();
+    return () => {
+      if (!isSuccessRef.current) {
+        clearDisplay();
+      }
+    };
   }, []);
+
+  const givenNum = parseInt(given.replace(/\D/g, "")) || 0;
+  const change = method === "Cash" ? givenNum - finalTotal : 0;
+  
+  const broadcastLiveCash = (newGivenNum: number) => {
+    if (activeTab === "Penuh" && method === "Cash") {
+      const items = cart.map(item => ({
+        name: item.product.name, qty: item.quantity,
+        price: calculateItemUnitPrice(item), notes: item.notes || undefined,
+      }));
+      const subtotal = cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0);
+      const newChange = newGivenNum - finalTotal;
+      broadcastToDisplay({
+        state: "payment", paymentMethod: "Cash",
+        items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
+        tax: total - subtotal, total: finalTotal,
+        given: newGivenNum, change: newChange >= 0 ? newChange : 0,
+      });
+    }
+  };
 
   // ── Timer countdown for QRIS expiration ──
   useEffect(() => {
@@ -193,18 +219,17 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
     setQrisOrderId(null);
   }, [partialTotal, activeTab]);
 
-  const givenNum = parseInt(given.replace(/\D/g, "")) || 0;
-  
   // Validation for Penuh
-  const change = method === "Cash" ? givenNum - finalTotal : 0;
   const isPenuhValid = method === "QRIS" || (method === "Cash" && givenNum >= finalTotal);
 
   const handleQuickAmount = (amount: number) => {
     setGiven(amount.toString());
+    broadcastLiveCash(amount);
   };
 
   const handleExactAmount = () => {
     setGiven(finalTotal.toString());
+    broadcastLiveCash(finalTotal);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -223,6 +248,7 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
           tax: total - subtotal, total: finalTotal,
           change: method === "Cash" ? change : 0,
         });
+        isSuccessRef.current = true;
         onSuccess(method, method === "Cash" ? givenNum : finalTotal, change, appliedPromo);
       }
     } else if (activeTab === "Split") {
@@ -350,6 +376,7 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
                             state: "payment", paymentMethod: "Cash",
                             items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
                             tax: total - subtotal, total: finalTotal,
+                            given: givenNum, change: change >= 0 ? change : 0,
                           });
                         }}
                         className={`py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 transition-all cursor-pointer ${
@@ -396,7 +423,11 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
                         <input 
                           type="text" 
                           value={givenNum === 0 ? "" : givenNum.toLocaleString("id-ID")}
-                          onChange={(e) => setGiven(e.target.value)}
+                          onChange={(e) => {
+                            setGiven(e.target.value);
+                            const val = parseInt(e.target.value.replace(/\D/g, "")) || 0;
+                            broadcastLiveCash(val);
+                          }}
                           className="w-full text-right text-2xl font-bold border border-slate-300 rounded-xl pl-12 pr-4 py-3 bg-white focus:border-[#4d3227] focus:ring-1 focus:ring-[#4d3227] outline-none"
                           placeholder="0"
                         />

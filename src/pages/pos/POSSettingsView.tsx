@@ -7,6 +7,7 @@ import {
   isConnected,
   getConnectedPrinter,
   testPrint,
+  reconnectPrinter,
   type PrinterDevice,
 } from "../../utils/bluetoothPrinter";
 import { Product } from "../../types";
@@ -76,16 +77,52 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
 
   useEffect(() => {
     if (!navigator.bluetooth) setBtSupported(false);
-    setConnectionStates(prev => {
-      const next = { ...prev };
-      ["Kasir", "Dapur", "Barista"].forEach(role => {
-        if (isConnected(role)) {
-          next[role] = { status: "connected", error: null };
+ 
+    const tryReconnect = async () => {
+      const roles = ["Kasir", "Dapur", "Barista"];
+      let reconnectedRoles: string[] = [];
+      for (const role of roles) {
+        if (!isConnected(role)) {
+          try {
+            const device = await reconnectPrinter(role);
+            if (device) {
+              setPrinterConnected(role.toLowerCase() as any, true);
+              reconnectedRoles.push(role);
+            }
+          } catch (e) {
+            console.warn(`[tryReconnect] Failed for ${role}:`, e);
+          }
         }
+      }
+      
+      setConnectionStates(prev => {
+        const next = { ...prev };
+        roles.forEach(role => {
+          if (isConnected(role)) {
+            next[role] = { status: "connected", error: null };
+          }
+        });
+        return next;
       });
-      return next;
+
+      return reconnectedRoles.length > 0;
+    };
+ 
+    // Coba langsung saat mount
+    tryReconnect().then(success => {
+      if (!success) {
+        // Jika gagal (kemungkinan butuh interaksi pengguna), coba lagi saat klik pertama
+        const handleFirstInteraction = async () => {
+          window.removeEventListener("click", handleFirstInteraction);
+          window.removeEventListener("pointerdown", handleFirstInteraction);
+          console.log("[BT] User interacted. Retrying auto-reconnect...");
+          await tryReconnect();
+        };
+        window.addEventListener("click", handleFirstInteraction);
+        window.addEventListener("pointerdown", handleFirstInteraction);
+      }
     });
-  }, []);
+  }, [setPrinterConnected]);
 
   const handleConnect = useCallback(async (role: string) => {
     setConnectionStates(prev => ({ ...prev, [role]: { status: "scanning", error: null } }));

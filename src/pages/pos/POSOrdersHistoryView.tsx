@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase";
 import ManagerAuthModal from "../../components/pos/ManagerAuthModal";
 import PaymentModal from "../../components/pos/PaymentModal";
 import { sendTelegramMessage } from "../../lib/telegram";
+import { calculateItemUnitPrice } from "../../utils/pricing";
 
 interface POSOrdersHistoryViewProps {
   posOrders: Order[];
@@ -332,34 +333,62 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
               </button>
             </div>
             
-            <div className="p-6 max-h-[60vh] overflow-y-auto no-scrollbar">
+            <div className="p-6 max-h-[60vh] overflow-y-auto no-scrollbar space-y-6">
               <div className="space-y-4">
-                {selectedOrderDetails.items.map((item, idx) => (
-                  <div key={idx} className="flex gap-4">
-                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-slate-600 text-sm shrink-0">
-                      {item.quantity}x
+                {selectedOrderDetails.items.map((item, idx) => {
+                  const unitPrice = calculateItemUnitPrice(item);
+                  const itemTotal = unitPrice * item.quantity;
+                  return (
+                    <div key={idx} className="flex gap-4 items-start pb-3 border-b border-slate-100 last:border-0 last:pb-0">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-slate-600 text-sm shrink-0">
+                        {item.quantity}x
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-slate-800 text-sm truncate">{item.product.name}</div>
+                        {(item.selectedMood || item.notes) && (
+                          <div className="mt-1 flex flex-col gap-0.5">
+                            {item.selectedMood && (
+                              <span className="text-[10px] font-bold text-amber-600 flex items-center gap-1">
+                                <span className="w-1 h-1 rounded-full bg-amber-600"></span>
+                                {item.selectedMood}
+                              </span>
+                            )}
+                            {item.notes && (
+                              <span className="text-[10px] text-slate-500 italic flex items-center gap-1">
+                                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                                Note: {item.notes}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <span className="text-[11px] text-slate-400 mt-1 block font-medium">
+                          @ Rp {unitPrice.toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-bold text-slate-700 text-sm">
+                          Rp {itemTotal.toLocaleString("id-ID")}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-slate-800 text-sm">{item.product.name}</div>
-                      {(item.selectedMood || item.notes) && (
-                        <div className="mt-1 flex flex-col gap-0.5">
-                          {item.selectedMood && (
-                            <span className="text-xs font-medium text-amber-600 flex items-center gap-1">
-                              <span className="w-1 h-1 rounded-full bg-amber-600"></span>
-                              {item.selectedMood}
-                            </span>
-                          )}
-                          {item.notes && (
-                            <span className="text-xs text-slate-500 italic flex items-center gap-1">
-                              <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                              Note: {item.notes}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
+              </div>
+
+              {/* Order total info */}
+              <div className="pt-4 border-t border-slate-200 space-y-2">
+                <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                  <span>Subtotal Item</span>
+                  <span>
+                    Rp {selectedOrderDetails.items.reduce((sum, item) => sum + calculateItemUnitPrice(item) * item.quantity, 0).toLocaleString("id-ID")}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-dashed border-slate-200 mt-1">
+                  <span className="text-sm font-extrabold text-slate-700">Total Tagihan</span>
+                  <span className="text-lg font-black text-[#4d3227]">
+                    Rp {selectedOrderDetails.total.toLocaleString("id-ID")}
+                  </span>
+                </div>
               </div>
             </div>
             
