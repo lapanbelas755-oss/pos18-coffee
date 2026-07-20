@@ -35,13 +35,25 @@ export interface CustomerDisplayPayload {
 }
 
 let remoteChannel: ReturnType<typeof supabase.channel> | null = null;
-function getRemoteChannel() {
+let isSubscribed = false;
+let pendingPayload: CustomerDisplayPayload | null = null;
+
+function initRemoteChannel() {
   if (!remoteChannel) {
     remoteChannel = supabase.channel("public:customer-display");
-    remoteChannel.subscribe();
+    remoteChannel.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        isSubscribed = true;
+        if (pendingPayload) {
+          remoteChannel?.send({ type: "broadcast", event: "display-update", payload: pendingPayload });
+          pendingPayload = null;
+        }
+      }
+    });
   }
-  return remoteChannel;
 }
+// Initialize immediately so it's ready when needed
+initRemoteChannel();
 
 export function broadcastToDisplay(payload: CustomerDisplayPayload) {
   try {
@@ -60,8 +72,12 @@ export function broadcastToDisplay(payload: CustomerDisplayPayload) {
 
   try {
     // 3. Supabase Realtime — untuk lintas perangkat
-    const ch = getRemoteChannel();
-    ch.send({ type: "broadcast", event: "display-update", payload });
+    if (remoteChannel && isSubscribed) {
+      remoteChannel.send({ type: "broadcast", event: "display-update", payload });
+    } else {
+      // Antre pesan jika belum terkoneksi
+      pendingPayload = payload;
+    }
   } catch (e) {
     console.warn("Customer Display remote broadcast failed:", e);
   }
