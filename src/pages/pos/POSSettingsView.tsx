@@ -570,10 +570,29 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
                       <textarea rows={3} value={storeProfile.alamatLengkap} onChange={(e) => setStoreProfile({...storeProfile, alamatLengkap: e.target.value})} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:border-[#4d3227] focus:ring-1 focus:ring-[#4d3227] outline-none"></textarea>
                     </div>
                   </div>
-                  <div className="pt-4 flex justify-end">
+                  <div className="pt-4 flex justify-end border-b border-slate-100 pb-6 mb-6">
                     <button onClick={() => handleSave("Profil Toko")} className="bg-[#4d3227] text-white px-6 py-2.5 rounded-xl font-bold shadow-md hover:bg-[#3a251d] transition-colors">
                       Simpan Perubahan
                     </button>
+                  </div>
+                  
+                  {/* Danger Zone */}
+                  <div>
+                    <h3 className="font-bold text-red-600 mb-2 flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">warning</span> Zona Berbahaya</h3>
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 border border-red-200 bg-red-50 rounded-xl gap-4">
+                       <div>
+                         <p className="font-bold text-red-800 text-sm">Hapus Data Transaksi Lokal</p>
+                         <p className="text-xs text-red-600 mt-1">Mengosongkan history shift, pendapatan, pengeluaran, dan antrian tersimpan di perangkat ini. Sangat berguna untuk transisi dari testing ke production (Live).</p>
+                       </div>
+                       <button onClick={() => {
+                         if (window.confirm('Yakin ingin menghapus semua data transaksi lokal di komputer ini? Aplikasi akan dimuat ulang ke angka 0.')) {
+                           ['shift_history', 'current_shift', 'current_petty_cash', 'tv_queue_orders', 'pending_online_orders'].forEach(key => localStorage.removeItem(key));
+                           window.location.reload();
+                         }
+                       }} className="bg-red-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-red-700 transition-colors shrink-0 whitespace-nowrap">
+                          Reset Data Lokal
+                       </button>
+                    </div>
                   </div>
                 </div>
               </div>
