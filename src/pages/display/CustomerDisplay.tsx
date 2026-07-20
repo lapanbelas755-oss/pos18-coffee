@@ -67,7 +67,6 @@ function IdleScreen() {
           <p className="cd-waiting-hint">Silakan pesan di kasir — tampilan ini akan otomatis berubah saat Anda memesan</p>
         </div>
       </div>
-    </div>
   );
 }
 
