@@ -29,9 +29,9 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Partial<Product> | null>(null);
   const [iceAddonPrice, setIceAddonPrice] = useState<number>(0);
-  
+
   // State for dynamic variants (sizes/varians)
-  const [variants, setVariants] = useState<{name: string, price: number}[]>([]);
+  const [variants, setVariants] = useState<{ name: string, price: number }[]>([]);
 
   const categories = ["Semua", ...Array.from(new Set(products.map(p => p.category)))];
 
@@ -65,19 +65,19 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
       image: newItem.image || "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80&w=400&h=400",
       category: newItem.category || "Coffee",
       stock: newItem.stock || 0,
-      sizes: variants.map(v => v.name),
+      sizes: variants.length > 0 ? variants.map(v => v.name) : (newItem.sizes || []),
       sugars: newItem.sugars || ["Normal", "Less", "No Sugar"],
       ices: newItem.ices || ["Normal", "Less", "No Ice"],
-      moods: newItem.moods || ["Hot", "Cold"],
+      moods: newItem.moods ?? [],
       priceModifiers: {
         ...(iceAddonPrice > 0 ? { "Cold": iceAddonPrice, "Ice": iceAddonPrice } : {}),
         ...variants.reduce((acc, curr) => {
-          if (curr.price > 0) acc[curr.name] = curr.price;
+          if (curr.name.trim() !== "" && curr.price >= 0) acc[curr.name.trim()] = curr.price;
           return acc;
         }, {} as Record<string, number>)
       }
     };
-    
+
     // Save to Supabase
     const { error } = await supabase.from('products').insert([{
       id: newProduct.id,
@@ -114,7 +114,7 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Yakin ingin menghapus menu "${name}"?`)) return;
-    
+
     const { error } = await supabase.from('products').delete().eq('id', id);
     if (error) {
       onNotify("Gagal menghapus item", "warning");
@@ -127,7 +127,7 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
   const handleEditClick = (item: Product) => {
     setEditingItem(item);
     setIceAddonPrice(item.priceModifiers?.Ice || 0);
-    
+
     // Load variants from sizes and priceModifiers
     const mods = item.priceModifiers || {};
     const loadedVariants = (item.sizes || []).map(size => ({
@@ -149,7 +149,7 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
     const updatedModifiers = {
       ...(iceAddonPrice > 0 ? { "Cold": iceAddonPrice, "Ice": iceAddonPrice } : {}),
       ...variants.reduce((acc, curr) => {
-        if (curr.price > 0) acc[curr.name] = curr.price;
+        if (curr.name.trim() !== "" && curr.price >= 0) acc[curr.name.trim()] = curr.price;
         return acc;
       }, {} as Record<string, number>)
     };
@@ -197,9 +197,9 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
       <div className="flex justify-between items-center flex-wrap gap-4 bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex gap-2 flex-wrap flex-1">
           {categories.map(cat => (
-            <button 
-              key={cat} 
-              onClick={() => setFilterCat(cat)} 
+            <button
+              key={cat}
+              onClick={() => setFilterCat(cat)}
               className={`px-4 py-2 rounded-full text-sm font-bold border transition-colors ${filterCat === cat ? "bg-[#4a2d21] text-white border-[#4a2d21]" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"}`}
             >
               {cat}
@@ -249,7 +249,7 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
                 const servings = getMaxServings(item);
                 const hasRecipe = servings !== null;
                 const isOutOfStock = hasRecipe ? servings.maxServings === 0 : (item.stock === 0 || item.stock === undefined);
-                
+
                 return (
                   <tr key={item.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${idx % 2 !== 0 ? 'bg-[#fafcf5]' : 'bg-white'}`}>
                     <td className="p-4">
@@ -315,15 +315,15 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
-            
+
             <form onSubmit={handleAddItem} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Nama Item</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   required
-                  value={newItem.name} 
-                  onChange={e => setNewItem({...newItem, name: e.target.value})}
+                  value={newItem.name}
+                  onChange={e => setNewItem({ ...newItem, name: e.target.value })}
                   className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                   placeholder="Cth: Iced Latte"
                 />
@@ -332,9 +332,9 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">Kategori</label>
-                  <select 
-                    value={newItem.category} 
-                    onChange={e => setNewItem({...newItem, category: e.target.value})}
+                  <select
+                    value={newItem.category}
+                    onChange={e => setNewItem({ ...newItem, category: e.target.value })}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                   >
                     <option value="COFFEE">COFFEE</option>
@@ -349,11 +349,11 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">Harga (Rp)</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     required
-                    value={newItem.price || ""} 
-                    onChange={e => setNewItem({...newItem, price: Number(e.target.value)})}
+                    value={newItem.price || ""}
+                    onChange={e => setNewItem({ ...newItem, price: Number(e.target.value) })}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                     placeholder="Cth: 25000"
                   />
@@ -363,20 +363,20 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">Initial Stock</label>
-                  <input 
-                    type="number" 
-                    value={newItem.stock || ""} 
-                    onChange={e => setNewItem({...newItem, stock: Number(e.target.value)})}
+                  <input
+                    type="number"
+                    value={newItem.stock || ""}
+                    onChange={e => setNewItem({ ...newItem, stock: Number(e.target.value) })}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                     placeholder="0"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">HPP / Modal (Rp)</label>
-                  <input 
-                    type="number" 
-                    value={newItem.cogs || ""} 
-                    onChange={e => setNewItem({...newItem, cogs: Number(e.target.value)})}
+                  <input
+                    type="number"
+                    value={newItem.cogs || ""}
+                    onChange={e => setNewItem({ ...newItem, cogs: Number(e.target.value) })}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                     placeholder="Cth: 12000"
                   />
@@ -385,10 +385,10 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
 
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Image URL</label>
-                <input 
-                  type="text" 
-                  value={newItem.image} 
-                  onChange={e => setNewItem({...newItem, image: e.target.value})}
+                <input
+                  type="text"
+                  value={newItem.image}
+                  onChange={e => setNewItem({ ...newItem, image: e.target.value })}
                   className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                   placeholder="https://..."
                 />
@@ -398,34 +398,34 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
                 <label className="block text-sm font-bold text-slate-700 mb-2">Tipe Minuman (Opsional)</label>
                 <div className="flex gap-4">
                   <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={newItem.moods?.includes('Hot') || false} 
+                    <input
+                      type="checkbox"
+                      checked={newItem.moods?.includes('Hot') || false}
                       onChange={(e) => {
                         const currentMoods = newItem.moods || [];
                         if (e.target.checked) {
-                          setNewItem({...newItem, moods: [...currentMoods, 'Hot']});
+                          setNewItem({ ...newItem, moods: [...currentMoods, 'Hot'] });
                         } else {
-                          setNewItem({...newItem, moods: currentMoods.filter(m => m !== 'Hot')});
+                          setNewItem({ ...newItem, moods: currentMoods.filter(m => m !== 'Hot') });
                         }
-                      }} 
-                      className="w-4 h-4 rounded text-[#4a2d21] focus:ring-[#4a2d21]" 
+                      }}
+                      className="w-4 h-4 rounded text-[#4a2d21] focus:ring-[#4a2d21]"
                     />
                     <span>Tersedia Hot</span>
                   </label>
                   <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={newItem.moods?.includes('Cold') || false} 
+                    <input
+                      type="checkbox"
+                      checked={newItem.moods?.includes('Cold') || false}
                       onChange={(e) => {
                         const currentMoods = newItem.moods || [];
                         if (e.target.checked) {
-                          setNewItem({...newItem, moods: [...currentMoods, 'Cold']});
+                          setNewItem({ ...newItem, moods: [...currentMoods, 'Cold'] });
                         } else {
-                          setNewItem({...newItem, moods: currentMoods.filter(m => m !== 'Cold')});
+                          setNewItem({ ...newItem, moods: currentMoods.filter(m => m !== 'Cold') });
                         }
-                      }} 
-                      className="w-4 h-4 rounded text-[#4a2d21] focus:ring-[#4a2d21]" 
+                      }}
+                      className="w-4 h-4 rounded text-[#4a2d21] focus:ring-[#4a2d21]"
                     />
                     <span>Tersedia Ice (Cold)</span>
                   </label>
@@ -434,9 +434,9 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
 
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Harga Tambahan Ice/Cold (Opsional)</label>
-                <input 
-                  type="number" 
-                  value={iceAddonPrice || ""} 
+                <input
+                  type="number"
+                  value={iceAddonPrice || ""}
                   onChange={e => setIceAddonPrice(Number(e.target.value))}
                   className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                   placeholder="Cth: 2000 (jika ice lebih mahal)"
@@ -447,7 +447,7 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
               <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
                 <div className="flex justify-between items-center mb-3">
                   <label className="block text-sm font-bold text-slate-700">Varian / Ukuran Dinamis (Opsional)</label>
-                  <button type="button" onClick={() => setVariants([...variants, {name: "", price: 0}])} className="text-xs bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold hover:bg-slate-100">+ Tambah Varian</button>
+                  <button type="button" onClick={() => setVariants([...variants, { name: "", price: 0 }])} className="text-xs bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold hover:bg-slate-100">+ Tambah Varian</button>
                 </div>
                 {variants.length === 0 && (
                   <p className="text-xs text-slate-400 italic">Belum ada varian (misal: Telur, Ayam, Large, dll)</p>
@@ -455,7 +455,7 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
                 <div className="space-y-2">
                   {variants.map((variant, idx) => (
                     <div key={idx} className="flex gap-2">
-                      <input 
+                      <input
                         type="text"
                         placeholder="Nama (Misal: Telur)"
                         value={variant.name}
@@ -466,13 +466,16 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
                         }}
                         className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#4a2d21]"
                       />
-                      <input 
+                      <input
                         type="number"
+                        min="0"
                         placeholder="Harga Tambahan (0)"
-                        value={variant.price || ""}
+                        value={variant.price}
                         onChange={e => {
                           const newV = [...variants];
-                          newV[idx].price = Number(e.target.value);
+                          const val = e.target.value;
+                          const parsed = Number(val);
+                          newV[idx].price = val === "" ? 0 : (isNaN(parsed) || parsed < 0 ? 0 : parsed);
                           setVariants(newV);
                         }}
                         className="w-32 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#4a2d21]"
@@ -486,15 +489,15 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex justify-end gap-3 mt-6">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setIsAddModalOpen(false)}
                   className="px-6 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   Batal
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="px-6 py-3 rounded-xl font-bold bg-[#4a2d21] text-white hover:bg-[#382016] shadow-md transition-all active:scale-95"
                 >
                   Simpan Item
@@ -515,15 +518,15 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
-            
+
             <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Nama Item</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   required
-                  value={editingItem.name || ""} 
-                  onChange={e => setEditingItem({...editingItem, name: e.target.value})}
+                  value={editingItem.name || ""}
+                  onChange={e => setEditingItem({ ...editingItem, name: e.target.value })}
                   className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                 />
               </div>
@@ -531,9 +534,9 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">Kategori</label>
-                  <select 
-                    value={editingItem.category || "Coffee"} 
-                    onChange={e => setEditingItem({...editingItem, category: e.target.value})}
+                  <select
+                    value={editingItem.category || "Coffee"}
+                    onChange={e => setEditingItem({ ...editingItem, category: e.target.value })}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                   >
                     <option value="COFFEE">COFFEE</option>
@@ -548,11 +551,11 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">Harga (Rp)</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     required
-                    value={editingItem.price || ""} 
-                    onChange={e => setEditingItem({...editingItem, price: Number(e.target.value)})}
+                    value={editingItem.price || ""}
+                    onChange={e => setEditingItem({ ...editingItem, price: Number(e.target.value) })}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                   />
                 </div>
@@ -561,19 +564,19 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">Stock</label>
-                  <input 
-                    type="number" 
-                    value={editingItem.stock || ""} 
-                    onChange={e => setEditingItem({...editingItem, stock: Number(e.target.value)})}
+                  <input
+                    type="number"
+                    value={editingItem.stock || ""}
+                    onChange={e => setEditingItem({ ...editingItem, stock: Number(e.target.value) })}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">HPP / Modal (Rp)</label>
-                  <input 
-                    type="number" 
-                    value={editingItem.cogs || ""} 
-                    onChange={e => setEditingItem({...editingItem, cogs: Number(e.target.value)})}
+                  <input
+                    type="number"
+                    value={editingItem.cogs || ""}
+                    onChange={e => setEditingItem({ ...editingItem, cogs: Number(e.target.value) })}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                   />
                 </div>
@@ -581,10 +584,10 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
 
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Image URL</label>
-                <input 
-                  type="text" 
-                  value={editingItem.image || ""} 
-                  onChange={e => setEditingItem({...editingItem, image: e.target.value})}
+                <input
+                  type="text"
+                  value={editingItem.image || ""}
+                  onChange={e => setEditingItem({ ...editingItem, image: e.target.value })}
                   className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                 />
               </div>
@@ -593,34 +596,34 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
                 <label className="block text-sm font-bold text-slate-700 mb-2">Tipe Minuman (Opsional)</label>
                 <div className="flex gap-4">
                   <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={editingItem.moods?.includes('Hot') || false} 
+                    <input
+                      type="checkbox"
+                      checked={editingItem.moods?.includes('Hot') || false}
                       onChange={(e) => {
                         const currentMoods = editingItem.moods || [];
                         if (e.target.checked) {
-                          setEditingItem({...editingItem, moods: [...currentMoods, 'Hot']});
+                          setEditingItem({ ...editingItem, moods: [...currentMoods, 'Hot'] });
                         } else {
-                          setEditingItem({...editingItem, moods: currentMoods.filter(m => m !== 'Hot')});
+                          setEditingItem({ ...editingItem, moods: currentMoods.filter(m => m !== 'Hot') });
                         }
-                      }} 
-                      className="w-4 h-4 rounded text-[#4a2d21] focus:ring-[#4a2d21]" 
+                      }}
+                      className="w-4 h-4 rounded text-[#4a2d21] focus:ring-[#4a2d21]"
                     />
                     <span>Tersedia Hot</span>
                   </label>
                   <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={editingItem.moods?.includes('Cold') || false} 
+                    <input
+                      type="checkbox"
+                      checked={editingItem.moods?.includes('Cold') || false}
                       onChange={(e) => {
                         const currentMoods = editingItem.moods || [];
                         if (e.target.checked) {
-                          setEditingItem({...editingItem, moods: [...currentMoods, 'Cold']});
+                          setEditingItem({ ...editingItem, moods: [...currentMoods, 'Cold'] });
                         } else {
-                          setEditingItem({...editingItem, moods: currentMoods.filter(m => m !== 'Cold')});
+                          setEditingItem({ ...editingItem, moods: currentMoods.filter(m => m !== 'Cold') });
                         }
-                      }} 
-                      className="w-4 h-4 rounded text-[#4a2d21] focus:ring-[#4a2d21]" 
+                      }}
+                      className="w-4 h-4 rounded text-[#4a2d21] focus:ring-[#4a2d21]"
                     />
                     <span>Tersedia Ice (Cold)</span>
                   </label>
@@ -629,9 +632,9 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
 
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Harga Tambahan Ice/Cold (Opsional)</label>
-                <input 
-                  type="number" 
-                  value={iceAddonPrice || ""} 
+                <input
+                  type="number"
+                  value={iceAddonPrice || ""}
                   onChange={e => setIceAddonPrice(Number(e.target.value))}
                   className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]/20 focus:border-[#4a2d21] transition-all"
                   placeholder="Cth: 2000 (jika ice lebih mahal)"
@@ -642,7 +645,7 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
               <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
                 <div className="flex justify-between items-center mb-3">
                   <label className="block text-sm font-bold text-slate-700">Varian / Ukuran Dinamis (Opsional)</label>
-                  <button type="button" onClick={() => setVariants([...variants, {name: "", price: 0}])} className="text-xs bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold hover:bg-slate-100">+ Tambah Varian</button>
+                  <button type="button" onClick={() => setVariants([...variants, { name: "", price: 0 }])} className="text-xs bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold hover:bg-slate-100">+ Tambah Varian</button>
                 </div>
                 {variants.length === 0 && (
                   <p className="text-xs text-slate-400 italic">Belum ada varian (misal: Telur, Ayam, Large, dll)</p>
@@ -650,7 +653,7 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
                 <div className="space-y-2">
                   {variants.map((variant, idx) => (
                     <div key={idx} className="flex gap-2">
-                      <input 
+                      <input
                         type="text"
                         placeholder="Nama (Misal: Telur)"
                         value={variant.name}
@@ -661,13 +664,16 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
                         }}
                         className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#4a2d21]"
                       />
-                      <input 
+                      <input
                         type="number"
+                        min="0"
                         placeholder="Harga Tambahan (0)"
-                        value={variant.price || ""}
+                        value={variant.price}
                         onChange={e => {
                           const newV = [...variants];
-                          newV[idx].price = Number(e.target.value);
+                          const val = e.target.value;
+                          const parsed = Number(val);
+                          newV[idx].price = val === "" ? 0 : (isNaN(parsed) || parsed < 0 ? 0 : parsed);
                           setVariants(newV);
                         }}
                         className="w-32 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#4a2d21]"
@@ -681,15 +687,15 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex justify-end gap-3 mt-6">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setIsEditModalOpen(false)}
                   className="px-6 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   Batal
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="px-6 py-3 rounded-xl font-bold bg-[#4a2d21] text-white hover:bg-[#382016] shadow-md transition-all active:scale-95"
                 >
                   Simpan Perubahan

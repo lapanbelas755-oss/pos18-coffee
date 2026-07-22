@@ -30,6 +30,22 @@ interface ToastNotification {
   type: "success" | "warning" | "info";
 }
 
+const getItemVariantNotes = (item: { selectedSize?: string; selectedMood?: string; notes?: string }) => {
+  const variantParts = [];
+  if (item.selectedSize && item.selectedSize !== "M") variantParts.push(item.selectedSize);
+  if (item.selectedMood) variantParts.push(item.selectedMood);
+  const variantStr = variantParts.join(" - ");
+  return [variantStr, item.notes].filter(Boolean).join(" - ");
+};
+
+const getItemReceiptName = (item: { product: { name: string }; selectedSize?: string; selectedMood?: string }) => {
+  const variantParts = [];
+  if (item.selectedSize && item.selectedSize !== "M") variantParts.push(item.selectedSize);
+  if (item.selectedMood) variantParts.push(item.selectedMood);
+  const variantStr = variantParts.join(" - ");
+  return variantStr ? `${item.product.name} (${variantStr})` : item.product.name;
+};
+
 export default function PosApp() {
   const { promos, setPromos, connectedPrinters, setPrinterConnected } = usePosStore();
   const { currentUser } = useAuthStore();
@@ -434,10 +450,8 @@ export default function PosApp() {
     const receiptData = {
       orderId: ticketId,
       items: itemsToCheckOut.map(item => {
-        const isDrink = ["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase());
-        const nameDesc = isDrink && item.selectedMood ? `${item.product.name} (${item.selectedMood})` : item.product.name;
         return {
-          name: nameDesc,
+          name: getItemReceiptName(item),
           qty: item.quantity,
           price: calculateItemUnitPrice(item),
           notes: item.notes
@@ -532,7 +546,7 @@ export default function PosApp() {
         const baristaItems = baristaCart.map((item, idx) => ({
           id: `pos-${ticketId}-B-${idx}`,
           name: `${item.quantity}x ${item.product.name}`,
-          notes: [item.selectedMood, item.notes].filter(Boolean).join(" - "),
+          notes: getItemVariantNotes(item),
           checked: false
         }));
 
@@ -577,7 +591,7 @@ export default function PosApp() {
             items: baristaCart.map(i => ({
               name: i.product.name,
               qty: i.quantity,
-              notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ")
+              notes: getItemVariantNotes(i)
             }))
           });
           printReceipt(bData, "Barista").catch(() => { });
@@ -588,7 +602,7 @@ export default function PosApp() {
         const kitchenItems = kitchenCart.map((item, idx) => ({
           id: `pos-${ticketId}-K-${idx}`,
           name: `${item.quantity}x ${item.product.name}`,
-          notes: item.notes || "",
+          notes: getItemVariantNotes(item),
           checked: false
         }));
 
@@ -620,7 +634,7 @@ export default function PosApp() {
             orderId: ticketId,
             tableNo: tableName || undefined,
             customerName: finalCustomerName,
-            items: kitchenCart.map(i => ({ name: i.product.name, qty: i.quantity, notes: i.notes || "" })),
+            items: kitchenCart.map(i => ({ name: i.product.name, qty: i.quantity, notes: getItemVariantNotes(i) })),
           });
           printReceipt(dData, "Dapur").catch(() => { });
         }
@@ -1073,7 +1087,7 @@ export default function PosApp() {
           const baristaItems = baristaCart.map((item, idx) => ({
             id: `pos-${ticketId}-B-${suffixId}-${idx}`,
             name: `${item.quantity}x ${item.product.name}`,
-            notes: [item.selectedMood, item.notes].filter(Boolean).join(" - "),
+            notes: getItemVariantNotes(item),
             checked: false
           }));
           const kdsOrderType = isDineIn ? "Dine In" : "Takeaway";
@@ -1117,7 +1131,7 @@ export default function PosApp() {
               items: baristaCart.map(i => ({
                 name: i.product.name,
                 qty: i.quantity,
-                notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ")
+                notes: getItemVariantNotes(i)
               }))
             });
             printReceipt(bData, "Barista").catch(() => { });
@@ -1128,7 +1142,7 @@ export default function PosApp() {
           const kitchenItems = kitchenCart.map((item, idx) => ({
             id: `pos-${ticketId}-K-${suffixId}-${idx}`,
             name: `${item.quantity}x ${item.product.name}`,
-            notes: item.notes || "",
+            notes: getItemVariantNotes(item),
             checked: false
           }));
           const kdsOrderType = isDineIn ? "Dine In" : "Takeaway";
@@ -1159,7 +1173,7 @@ export default function PosApp() {
               orderId: ticketId + (existingOrder ? " (TAMBAHAN)" : ""),
               tableNo: tableName || undefined,
               customerName: customerName,
-              items: kitchenCart.map(i => ({ name: i.product.name, qty: i.quantity, notes: i.notes || "" })),
+              items: kitchenCart.map(i => ({ name: i.product.name, qty: i.quantity, notes: getItemVariantNotes(i) })),
             });
             printReceipt(dData, "Dapur").catch(() => { });
           }
@@ -1329,7 +1343,7 @@ export default function PosApp() {
         items: baristaCart.map(i => ({
           name: i.product.name,
           qty: i.quantity,
-          notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ")
+          notes: getItemVariantNotes(i)
         }))
       });
       printReceipt(bData, "Barista").catch(() => { });
@@ -1343,7 +1357,7 @@ export default function PosApp() {
         items: kitchenCart.map(i => ({ 
           name: i.product.name, 
           qty: i.quantity, 
-          notes: i.notes || ""
+          notes: getItemVariantNotes(i)
         })),
       });
       printReceipt(dData, "Dapur").catch(() => { });

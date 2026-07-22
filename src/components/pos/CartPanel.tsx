@@ -172,11 +172,9 @@ export default function CartPanel({
                     </div>
                     <p className="text-[13px] font-medium text-slate-500 mb-2">
                       {(() => {
-                        const isDrink = ["COFFEE", "NON-COFFEE", "TEA", "SIGNATURE"].includes((item.product.category || "").toUpperCase());
                         const parts = [];
-                        if (isDrink) {
-                          if (item.selectedMood) parts.push(item.selectedMood === "Cold" || item.selectedMood === "Ice" ? "Dingin" : "Panas");
-                        }
+                        if (item.selectedSize && item.selectedSize !== "M") parts.push(`Varian: ${item.selectedSize}`);
+                        if (item.selectedMood) parts.push(item.selectedMood === "Cold" || item.selectedMood === "Ice" ? "Dingin" : item.selectedMood === "Hot" ? "Panas" : item.selectedMood);
                         return parts.filter(Boolean).join(" · ");
                       })()}
                     </p>
