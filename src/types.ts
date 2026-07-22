@@ -127,7 +127,7 @@ export interface Order {
   payment: string; // e.g., "Cash", "QRIS", "Unpaid"
   amountGiven?: number; // Tunai yang diberikan
   change?: number; // Kembalian
-  status: "Unpaid" | "Selesai" | "Batal" | "Ready" | "Pending";
+  status: "Unpaid" | "Partially Paid" | "Selesai" | "Batal" | "Ready" | "Pending";
   total: number;
   time: string;
   items: CartItem[];

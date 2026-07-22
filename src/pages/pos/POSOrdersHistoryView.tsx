@@ -46,6 +46,11 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
     setOrderToPay(order);
   };
 
+  const toDbOrder = (o: Order) => {
+    const { customerName, amountGiven, change, ...rest } = o;
+    return { ...rest, customer_name: customerName || null };
+  };
+
   const handlePaymentSuccess = (method: string, amountGiven?: number, change?: number) => {
     if (!orderToPay) return;
 
@@ -67,6 +72,109 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
     supabase.from('orders').update({ status: "Selesai", payment: method }).eq('id', orderToPay.id).then();
 
     onNotify(`Pembayaran pesanan ${orderToPay.id} berhasil diproses dengan ${method}.`, "success");
+    setOrderToPay(null);
+  };
+
+  const handlePartialPaymentSuccess = (method: string, paidItems: any[]) => {
+    if (!orderToPay) return;
+
+    const paidItemIds = new Set(paidItems.map(i => i.id));
+    const remainingItems = orderToPay.items.filter(i => !paidItemIds.has(i.id));
+
+    let taxR = 0;
+    try {
+      const savedBiaya = localStorage.getItem("pos_biaya_settings");
+      if (savedBiaya) {
+        const biayaList = JSON.parse(savedBiaya);
+        const pb1 = biayaList.find((b: any) => b.id === "FEE-001");
+        if (pb1 && !pb1.isActive) taxR = 0;
+        else if (pb1 && pb1.isActive) taxR = pb1.value / 100;
+      }
+    } catch (e) { }
+
+    const paidSubtotal = paidItems.reduce((s, i) => s + (calculateItemUnitPrice(i) * i.quantity), 0);
+    const paidTotal = paidSubtotal + Math.round(paidSubtotal * taxR);
+
+    const remainingSubtotal = remainingItems.reduce((s, i) => s + (calculateItemUnitPrice(i) * i.quantity), 0);
+    const remainingTotal = remainingSubtotal + Math.round(remainingSubtotal * taxR);
+
+    const timestamp = new Date().toISOString();
+    const timeStr = new Date().toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+    const queueNo = orderToPay.queue || orderToPay.id.replace('INV-', '');
+    const paidInvoiceId = `INV-${queueNo}-P${Date.now().toString().slice(-4)}`;
+    
+    const paidOrderRecord: Order = {
+      ...orderToPay,
+      id: paidInvoiceId,
+      items: paidItems,
+      total: paidTotal,
+      status: "Selesai",
+      payment: method,
+      time: timeStr,
+      created_at: timestamp
+    };
+
+    if (remainingItems.length === 0) {
+      setPosOrders(prev => [
+        paidOrderRecord,
+        ...prev.map(o => o.id === orderToPay.id ? { ...o, status: "Selesai" as const, payment: method } : o)
+      ]);
+
+      if (orderToPay.table && orderToPay.table !== "-") {
+        setTables(prev => prev.map(t => {
+          if (t.id === orderToPay.table || t.name === orderToPay.table) {
+            const updated: TableData = { ...t, status: "Kosong", cart: [], current: 0, customerName: undefined, linkedTo: undefined, time: "" };
+            supabase.from('tables').update({
+              status: "Kosong", cart: [], current: 0, customer_name: null, linked_to: null, time: ""
+            }).eq('id', t.id).then();
+            return updated;
+          }
+          return t;
+        }));
+      }
+
+      supabase.from('orders').update({ status: "Selesai", payment: method }).eq('id', orderToPay.id).then();
+      supabase.from('orders').insert([toDbOrder(paidOrderRecord)]).then();
+      onNotify(`Pesanan ${orderToPay.id} telah LUNAS seluruhnya.`, "success");
+    } else {
+      setPosOrders(prev => [
+        paidOrderRecord,
+        ...prev.map(o => o.id === orderToPay.id ? {
+          ...o,
+          status: "Partially Paid" as const,
+          items: remainingItems,
+          total: remainingTotal
+        } : o)
+      ]);
+
+      if (orderToPay.table && orderToPay.table !== "-") {
+        setTables(prev => prev.map(t => {
+          if (t.id === orderToPay.table || t.name === orderToPay.table) {
+            const updated: TableData = { ...t, status: "Sudah Dipesan", cart: remainingItems };
+            supabase.from('tables').update({
+              cart: remainingItems, status: "Sudah Dipesan"
+            }).eq('id', t.id).then();
+            return updated;
+          }
+          return t;
+        }));
+      }
+
+      supabase.from('orders').update({
+        status: "Partially Paid",
+        items: remainingItems,
+        total: remainingTotal
+      }).eq('id', orderToPay.id).then();
+
+      supabase.from('orders').insert([toDbOrder(paidOrderRecord)]).then();
+      onNotify(`Pembayaran sebagian berhasil (Sisa ${remainingItems.length} item belum dibayar).`, "success");
+    }
+
+    if (onReprint) {
+      setTimeout(() => onReprint(paidInvoiceId), 200);
+    }
+
     setOrderToPay(null);
   };
 
@@ -94,7 +202,7 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
     onNotify(`Pesanan ${orderId} telah di-Void.`, "warning");
     
     // Telegram Notification
-    const telegramMsg = `🚫 <b>TRANSAKSI VOID</b> 🚫\n\n🆔 <b>Order ID:</b> ${orderId}\n👤 <b>Kasir:</b> ${order.cashier_name || 'System'}\n💵 <b>Total:</b> Rp ${order.total.toLocaleString('id-ID')}\n📝 <b>Catatan:</b> Pesanan telah dibatalkan / di-void.`;
+    const telegramMsg = `🚫 <b>TRANSAKSI VOID</b> 🚫\n\n🆔 <b>Order ID:</b> ${orderId}\n👤 <b>Kasir:</b> ${order.staff || 'System'}\n💵 <b>Total:</b> Rp ${order.total.toLocaleString('id-ID')}\n📝 <b>Catatan:</b> Pesanan telah dibatalkan / di-void.`;
     sendTelegramMessage(telegramMsg);
 
     setOrderToVoid(null);
@@ -196,6 +304,11 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
                           <div className="w-2.5 h-2.5 rounded-full bg-slate-800 animate-pulse"></div>
                           <span className="text-sm font-bold text-slate-800">Unpaid</span>
                         </div>
+                      ) : order.status === "Partially Paid" ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></div>
+                          <span className="text-sm font-bold text-amber-700">Partially Paid</span>
+                        </div>
                       ) : order.status === "Batal" ? (
                         <div className="flex items-center gap-1.5">
                           <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
@@ -213,7 +326,7 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
                     </td>
                     <td className="px-4 py-4 text-sm text-slate-500">{order.time}</td>
                     <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
-                      {order.status === "Unpaid" ? (
+                      {(order.status === "Unpaid" || order.status === "Partially Paid") ? (
                         <div className="flex flex-col gap-1.5 justify-center">
                           <button 
                             onClick={() => handleBayar(order.id)}
@@ -306,9 +419,7 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
           cart={orderToPay.items}
           onClose={() => setOrderToPay(null)}
           onSuccess={handlePaymentSuccess}
-          onPartialSuccess={(method, paidItems) => {
-            handlePaymentSuccess(method);
-          }}
+          onPartialSuccess={handlePartialPaymentSuccess}
         />
       )}
       {/* Order Details Modal */}

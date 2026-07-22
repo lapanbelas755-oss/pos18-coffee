@@ -211,7 +211,10 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   
   const selectedItems = cart.filter(c => selectedItemIds.includes(c.id));
-  const partialTotal = selectedItems.reduce((s, c) => s + (c.product.price * c.quantity), 0);
+  const cartSubtotal = cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0);
+  const taxRate = total > 0 && cartSubtotal > 0 ? (total - cartSubtotal) / cartSubtotal : 0;
+  const partialSubtotal = selectedItems.reduce((s, c) => s + (calculateItemUnitPrice(c) * c.quantity), 0);
+  const partialTotal = partialSubtotal + Math.round(partialSubtotal * taxRate);
 
   const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
   const remaining = Math.max(finalTotal - totalPaid, 0);

@@ -25,7 +25,7 @@ export default function POSLayout({ posOrders = [] }: { posOrders?: Order[] }) {
   const location = useLocation();
   const { currentUser } = useAuthStore();
 
-  const unpaidCount = posOrders.filter(o => o.status === "Unpaid").length;
+  const unpaidCount = posOrders.filter(o => o.status === "Unpaid" || o.status === "Partially Paid").length;
   const onlineCount = posOrders.filter(o => o.type === "Online" && o.status !== "Selesai" && o.status !== "Batal").length;
 
   React.useEffect(() => {

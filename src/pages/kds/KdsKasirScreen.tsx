@@ -126,7 +126,9 @@ export default function KdsKasirScreen() {
         
         const stat = (po.status || "").toLowerCase();
         const pay = (po.payment || "").toLowerCase();
-        if (stat === 'unpaid' || pay === 'unpaid' || pay === 'split' || pay === '') {
+        if (stat === 'partially paid' || pay === 'partially paid') {
+          paymentStatus = 'Partially Paid';
+        } else if (stat === 'unpaid' || pay === 'unpaid' || pay === 'split' || pay === '') {
           paymentStatus = 'Unpaid';
         } else {
           paymentStatus = 'Paid';

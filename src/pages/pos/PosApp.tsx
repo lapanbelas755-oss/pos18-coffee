@@ -885,7 +885,7 @@ export default function PosApp() {
 
     setPosOrders(prev => {
       if (activeTableId) {
-        const existingIdx = prev.findIndex(o => o.table === activeTableId && o.status === "Unpaid");
+        const existingIdx = prev.findIndex(o => o.table === activeTableId && (o.status === "Unpaid" || o.status === "Partially Paid"));
         if (existingIdx >= 0) {
           const updated = [...prev];
 
@@ -909,12 +909,12 @@ export default function PosApp() {
               }
             } catch (e) { }
 
-            const remainingSubtotal = remaining.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+            const remainingSubtotal = remaining.reduce((sum, item) => sum + (calculateItemUnitPrice(item) * item.quantity), 0);
             const remainingTotal = remainingSubtotal + Math.round(remainingSubtotal * taxR);
 
-            // Update Unpaid order
-            updated[existingIdx] = { ...updated[existingIdx], items: remaining, total: remainingTotal };
-            supabase.from('orders').update({ items: remaining, total: remainingTotal }).eq('id', updated[existingIdx].id).then();
+            // Update order with remaining items and status "Partially Paid"
+            updated[existingIdx] = { ...updated[existingIdx], status: "Partially Paid", items: remaining, total: remainingTotal };
+            supabase.from('orders').update({ status: "Partially Paid", items: remaining, total: remainingTotal }).eq('id', updated[existingIdx].id).then();
 
             // Insert new partial paid order
             const partialOrder: Order = {
@@ -930,9 +930,48 @@ export default function PosApp() {
           return updated;
         }
       }
-      // Supabase Insert (Optimistic)
-      supabase.from('orders').insert([toDbOrder(newOrder)]).then();
-      return [newOrder, ...prev];
+      
+      if (itemsToCheckOut.length < cart.length) {
+        const paidItemIds = new Set(itemsToCheckOut.map(i => i.id));
+        const remaining = cart.filter(i => !paidItemIds.has(i.id));
+
+        let taxR = 0;
+        try {
+          const savedBiaya = localStorage.getItem("pos_biaya_settings");
+          if (savedBiaya) {
+            const biayaList = JSON.parse(savedBiaya);
+            const pb1 = biayaList.find((b: any) => b.id === "FEE-001");
+            if (pb1 && !pb1.isActive) taxR = 0;
+            else if (pb1 && pb1.isActive) taxR = pb1.value / 100;
+          }
+        } catch (e) { }
+
+        const remainingSubtotal = remaining.reduce((sum, item) => sum + (calculateItemUnitPrice(item) * item.quantity), 0);
+        const remainingTotal = remainingSubtotal + Math.round(remainingSubtotal * taxR);
+
+        const openOrder: Order = {
+          id: `INV-${ticketId}-OPEN`,
+          queue: ticketId.split('-')[1],
+          staff: currentUser?.name.split(' ')[0] || "Kasir",
+          table: activeTableId || "-",
+          pager: "-",
+          customerName: checkoutCustomerName,
+          type: (activeTableId ? "Dine In" : "Take Out") as Order["type"],
+          payment: "Unpaid",
+          status: "Partially Paid",
+          total: remainingTotal,
+          time: new Date().toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+          items: remaining,
+          created_at: new Date().toISOString()
+        };
+
+        supabase.from('orders').insert([toDbOrder(openOrder)]).then();
+        supabase.from('orders').insert([toDbOrder(newOrder)]).then();
+        return [newOrder, openOrder, ...prev];
+      } else {
+        supabase.from('orders').insert([toDbOrder(newOrder)]).then();
+        return [newOrder, ...prev];
+      }
     });
 
     // KDS Optimistic insert handled conditionally above
@@ -1017,7 +1056,7 @@ export default function PosApp() {
 
       // Find existing order BEFORE calling setPosOrders
       const existingIdx = isDineIn 
-        ? posOrders.findIndex(o => o.table === activeTableId && o.status === "Unpaid")
+        ? posOrders.findIndex(o => o.table === activeTableId && (o.status === "Unpaid" || o.status === "Partially Paid"))
         : -1;
       const existingOrder = existingIdx >= 0 ? posOrders[existingIdx] : null;
       const tableName = activeTableId ? tables.find(t => t.id === activeTableId)?.name : undefined;
