@@ -230,7 +230,7 @@ export default function POSOnlineView({ posOrders, setPosOrders, onNotify }: POS
                     <td className="px-4 py-3 text-sm text-slate-500">{order.queue}</td>
                     <td className="px-4 py-3 text-sm text-slate-500">{order.staff}</td>
                     <td className="px-4 py-3 text-sm text-slate-500">{order.table || "-"}</td>
-                    <td className="px-4 py-3 text-sm text-slate-500 font-bold">{order.customerName || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500 font-bold">{order.customerName && !order.customerName.startsWith('table-') ? order.customerName : "-"}</td>
                     <td className="px-4 py-3 text-sm text-slate-500">{order.type}</td>
                     <td className="px-4 py-3 text-sm text-slate-500">{order.payment}</td>
                     <td className="px-4 py-3">

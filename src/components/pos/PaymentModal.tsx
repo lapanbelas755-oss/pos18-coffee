@@ -153,22 +153,29 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
     };
   }, [method, qrisOrderId, total, onSuccess]);
 
-  const handleSelectQris = async (amount: number = finalTotal) => {
+  const handleSelectQris = async (amount?: number) => {
     setMethod("QRIS");
     setIsGeneratingQris(true);
     setQrisError(null);
     setQrisTimer(900);
 
+    const chargeAmount = amount !== undefined 
+      ? amount 
+      : (activeTab === "Item" ? partialTotal : activeTab === "Split" ? Math.round(finalTotal / splitBy) : finalTotal);
+
+    const targetItems = activeTab === "Item" ? selectedItems : cart;
+    const targetSubtotal = activeTab === "Item" ? partialSubtotal : cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0);
+
     // Broadcast payment state with loading QRIS
-    const items = cart.map(item => ({
+    const displayItems = targetItems.map(item => ({
       name: item.product.name, qty: item.quantity,
       price: calculateItemUnitPrice(item), notes: item.notes || undefined,
     }));
-    const subtotal = cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0);
+
     broadcastToDisplay({
       state: "payment", paymentMethod: "QRIS", qrisUrl: null, qrisTimer: 900,
-      items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
-      tax: total - subtotal, total: finalTotal,
+      items: displayItems, subtotal: targetSubtotal, discount: activeTab === "Item" ? 0 : discountAmount, discountName: appliedPromo?.title,
+      tax: activeTab === "Item" ? Math.max(0, chargeAmount - targetSubtotal) : Math.max(0, total - targetSubtotal), total: chargeAmount,
     });
 
     try {
@@ -178,8 +185,8 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           order_id: Math.floor(Math.random() * 1000000).toString(),
-          gross_amount: amount,
-          customer_name: "Customer POS"
+          gross_amount: Math.round(chargeAmount),
+          customer_name: customerName || "Customer POS"
         })
       });
       const data = await response.json();
@@ -190,8 +197,8 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
         broadcastToDisplay({
           state: "payment", paymentMethod: "QRIS",
           qrisUrl: data.qr_url, qrisTimer: 900,
-          items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
-          tax: total - subtotal, total: finalTotal,
+          items: displayItems, subtotal: targetSubtotal, discount: activeTab === "Item" ? 0 : discountAmount, discountName: appliedPromo?.title,
+          tax: activeTab === "Item" ? Math.max(0, chargeAmount - targetSubtotal) : Math.max(0, total - targetSubtotal), total: chargeAmount,
         });
       } else {
         setQrisError(data.error || "Gagal mendapatkan QRIS");
@@ -671,7 +678,7 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
                     <button type="button" onClick={() => setMethod("Cash")} className={`py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 transition-all cursor-pointer ${method === "Cash" ? "border-[#4d3227] bg-blue-50/50 text-[#4d3227]" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
                       <span className="material-symbols-outlined text-[18px]">payments</span> Tunai
                     </button>
-                    <button type="button" onClick={() => setMethod("QRIS")} className={`py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 transition-all cursor-pointer ${method === "QRIS" ? "border-[#4d3227] bg-blue-50/50 text-[#4d3227]" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+                    <button type="button" onClick={() => handleSelectQris(partialTotal)} className={`py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 transition-all cursor-pointer ${method === "QRIS" ? "border-[#4d3227] bg-blue-50/50 text-[#4d3227]" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
                       <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span> QRIS
                     </button>
                   </div>

@@ -293,7 +293,7 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
                     <td className="px-4 py-4 text-sm text-slate-500 font-medium">{order.id}</td>
                     <td className="px-4 py-4 text-sm text-slate-500 text-center">{order.queue}</td>
                     <td className="px-4 py-4 text-sm text-slate-500">{order.staff}</td>
-                    <td className="px-4 py-4 text-sm text-slate-500 font-bold">{order.customerName || "-"}</td>
+                    <td className="px-4 py-4 text-sm text-slate-500 font-bold">{order.customerName && !order.customerName.startsWith('table-') ? order.customerName : "-"}</td>
                     <td className="px-4 py-4 text-sm text-slate-500">{tables.find(t => t.id === order.table)?.name || order.table || "-"}</td>
                     <td className="px-4 py-4 text-sm text-slate-500 text-center">{order.pager}</td>
                     <td className="px-4 py-4 text-sm text-slate-500">{order.type}</td>

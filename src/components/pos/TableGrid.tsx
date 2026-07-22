@@ -188,7 +188,7 @@ export default function TableGrid({
                         ke {tables.find(t => t.id === table.linkedTo)?.name}
                       </span>
                     )}
-                    {table.customerName && (
+                    {table.customerName && !table.customerName.startsWith('table-') && (
                       <span className="text-[10px] bg-black/20 px-2 py-0.5 rounded-full mt-1.5 font-bold truncate max-w-[90%]">
                         {table.customerName}
                       </span>

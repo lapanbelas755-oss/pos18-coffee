@@ -39,7 +39,7 @@ export default function POSDashboard({
   React.useEffect(() => {
     if (activeTableId) {
       const selectedTable = tables.find(t => t.id === activeTableId);
-      if (selectedTable && selectedTable.customerName) {
+      if (selectedTable && selectedTable.customerName && !selectedTable.customerName.startsWith('table-')) {
         setCustomerName(selectedTable.customerName);
       }
     }
