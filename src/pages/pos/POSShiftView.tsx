@@ -3,6 +3,7 @@ import { usePOSContext } from "../../layouts/POSLayout";
 import { usePosStore } from "../../store/posStore";
 import { useAuthStore } from "../../store/authStore";
 import { Order } from "../../types";
+import { sendTelegramMessage } from "../../lib/telegram";
 
 interface POSShiftViewProps {
   onNotify: (msg: string, type?: "success" | "warning" | "info") => void;
@@ -150,12 +151,48 @@ export default function POSShiftView({ onNotify, posOrders }: POSShiftViewProps)
         totalSales: totals.totalSales
       };
       setShiftHistory(prev => [report, ...prev]);
+
+      // Kirim Notifikasi Tutup Shift ke Telegram
+      const openHour = new Date(shift.openedAt).getHours();
+      const shiftLabel = openHour < 15 ? "Shift 1 (Pagi/Siang)" : "Shift 2 (Sore/Malam)";
+      const diffText = diff > 0 
+        ? `+Rp ${diff.toLocaleString('id-ID')} (Surplus/Lebih)` 
+        : diff < 0 
+        ? `-Rp ${Math.abs(diff).toLocaleString('id-ID')} (Minus/Kurang)` 
+        : `Rp 0 (Pas/Sesuai)`;
+
+      const shiftOrdersCount = posOrders.filter(o => {
+        const rawTime = o.created_at || (o as any).createdAt;
+        const t = typeof rawTime === 'number' ? rawTime : rawTime ? new Date(rawTime).getTime() : 0;
+        return t >= shift.openedAt;
+      }).length;
+
+      const telegramMsg = 
+        `🔒 <b>NOTIFIKASI TUTUP SHIFT [${shiftLabel.toUpperCase()}]</b>\n` +
+        `-----------------------------------------\n` +
+        `👤 <b>Kasir:</b> ${shift.staff}\n` +
+        `📅 <b>Waktu Tutup:</b> ${new Date().toLocaleString('id-ID')}\n` +
+        `🕒 <b>Waktu Buka:</b> ${new Date(shift.openedAt).toLocaleString('id-ID')}\n` +
+        `-----------------------------------------\n` +
+        `💰 <b>Total Penjualan:</b> Rp ${totals.totalSales.toLocaleString('id-ID')}\n` +
+        `📊 <b>Jumlah Transaksi:</b> ${shiftOrdersCount} Transaksi\n` +
+        `💵 <b>Kasir Tunai (Cash):</b> Rp ${totals.cashSales.toLocaleString('id-ID')}\n` +
+        `📱 <b>Kasir Non-Tunai (QRIS):</b> Rp ${totals.qrisSales.toLocaleString('id-ID')}\n` +
+        `-----------------------------------------\n` +
+        `📥 <b>Saldo Kas Awal:</b> Rp ${totals.starting.toLocaleString('id-ID')}\n` +
+        `📥 <b>Petty Cash Masuk:</b> Rp ${totals.cashInTotal.toLocaleString('id-ID')}\n` +
+        `📤 <b>Petty Cash Keluar:</b> Rp ${totals.cashOutTotal.toLocaleString('id-ID')}\n` +
+        `💵 <b>Ekspektasi Kas Fisik:</b> Rp ${totals.expectedCash.toLocaleString('id-ID')}\n` +
+        `💵 <b>Aktual Kas Fisik:</b> Rp ${actual.toLocaleString('id-ID')}\n` +
+        `⚖️ <b>Selisih Kas:</b> ${diffText}`;
+
+      sendTelegramMessage(telegramMsg);
     }
 
     setShift(null);
     setPettyCashList([]);
     setIsCloseModalOpen(false);
-    onNotify(`Shift ditutup. Selisih: ${diff >= 0 ? '+' : ''}${diff}. Laporan dicetak.`, "info");
+    onNotify(`Shift ditutup. Selisih: ${diff >= 0 ? '+' : ''}${diff}. Laporan terkirim ke Telegram.`, "info");
   };
 
   const handleAddPettyCash = (e: React.FormEvent) => {

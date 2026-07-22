@@ -205,21 +205,26 @@ export default function ScanOpname() {
         await supabase.from('waste_logs').insert(logsToInsert);
       }
 
-      // Send telegram notification if there are differences
-      if (telegramDiffs.length > 0) {
-        const deptLabel = isKitchen ? "Dapur" : isBarista ? "Barista" : "Waiters";
-        const dateStr = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
-        const telegramText = 
-          `<b>🔔 LAPORAN SELISIH STOCK OPNAME [${deptLabel.toUpperCase()}]</b>\n` +
-          `-----------------------------------------\n` +
-          `👤 <b>Karyawan:</b> ${user}\n` +
-          `📅 <b>Waktu:</b> ${dateStr}\n` +
-          `-----------------------------------------\n` +
-          `<b>Daftar Selisih Penyesuaian:</b>\n` +
-          telegramDiffs.join("\n");
+      // Send Stock Opname Telegram notification
+      const deptLabel = isKitchen ? "Dapur" : isBarista ? "Barista" : "Waiters";
+      const dateStr = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+      const totalChecked = (isKitchen || isBarista ? stockItems.length : 0) + products.length;
 
-        await sendTelegramMessage(telegramText);
+      let telegramText = 
+        `📋 <b>NOTIFIKASI STOCK OPNAME [${deptLabel.toUpperCase()}]</b>\n` +
+        `-----------------------------------------\n` +
+        `👤 <b>Pemeriksa (User):</b> ${user}\n` +
+        `📅 <b>Waktu Opname:</b> ${dateStr}\n` +
+        `📦 <b>Total Item Diperiksa:</b> ${totalChecked} Item\n` +
+        `-----------------------------------------\n`;
+
+      if (telegramDiffs.length > 0) {
+        telegramText += `⚠️ <b>Daftar Item Selisih Stok (${telegramDiffs.length} Item):</b>\n` + telegramDiffs.join("\n");
+      } else {
+        telegramText += `✅ <b>Semua stok fisik pas & sesuai dengan data sistem!</b> (0 Selisih)`;
       }
+
+      await sendTelegramMessage(telegramText);
 
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
