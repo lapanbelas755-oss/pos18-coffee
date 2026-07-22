@@ -58,7 +58,7 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
 
     if (orderToPay.table) {
       setTables(prev => prev.map(t => {
-        if (t.id === orderToPay.table || t.name === orderToPay.table) {
+        if (t.id === orderToPay.table || t.name === orderToPay.table || t.linkedTo === orderToPay.table) {
           const updated: TableData = { ...t, status: "Kosong", cart: [], current: 0, customerName: undefined, linkedTo: undefined, time: "" };
           supabase.from('tables').update({
             status: "Kosong", cart: [], current: 0, customer_name: null, linked_to: null, time: ""
@@ -123,7 +123,7 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
 
       if (orderToPay.table && orderToPay.table !== "-") {
         setTables(prev => prev.map(t => {
-          if (t.id === orderToPay.table || t.name === orderToPay.table) {
+          if (t.id === orderToPay.table || t.name === orderToPay.table || t.linkedTo === orderToPay.table) {
             const updated: TableData = { ...t, status: "Kosong", cart: [], current: 0, customerName: undefined, linkedTo: undefined, time: "" };
             supabase.from('tables').update({
               status: "Kosong", cart: [], current: 0, customer_name: null, linked_to: null, time: ""
