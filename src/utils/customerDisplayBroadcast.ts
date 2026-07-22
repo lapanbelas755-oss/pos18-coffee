@@ -19,7 +19,7 @@ export interface DisplayItem {
 }
 
 export interface CustomerDisplayPayload {
-  state: "idle" | "order" | "payment" | "success";
+  state: "idle" | "order" | "cart" | "payment" | "success";
   items?: DisplayItem[];
   subtotal?: number;
   discount?: number;

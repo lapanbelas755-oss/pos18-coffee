@@ -10,7 +10,7 @@ interface DisplayItem {
 }
 
 interface DisplayData {
-  state: "idle" | "order" | "payment" | "success";
+  state: "idle" | "order" | "cart" | "payment" | "success";
   items?: DisplayItem[];
   subtotal?: number;
   discount?: number;
@@ -353,7 +353,8 @@ export default function CustomerDisplay() {
 
   const renderScreen = () => {
     switch (displayData.state) {
-      case "order":   return <OrderScreen data={displayData} />;
+      case "order":
+      case "cart":    return <OrderScreen data={displayData} />;
       case "payment": return <PaymentScreen data={displayData} />;
       case "success": return <SuccessScreen data={displayData} />;
       default:        return <IdleScreen />;
