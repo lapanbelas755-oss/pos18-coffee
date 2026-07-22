@@ -51,8 +51,32 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
       footerText: "Terima kasih atas kunjungan Anda!\nFollow IG: @pos18.coffee",
     };
   });
-  const [tplDapur, setTplDapur] = useState({ autoPrint: true, largeNotes: true });
-  const [tplBarista, setTplBarista] = useState({ stickerMode: false, separateItems: true });
+  const [tplDapur, setTplDapur] = useState(() => {
+    const saved = localStorage.getItem("pos_dapur_receipt_settings");
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return { autoPrint: true, largeNotes: true };
+  });
+
+  const updateTplDapur = (updates: any) => {
+    const next = { ...tplDapur, ...updates };
+    setTplDapur(next);
+    localStorage.setItem("pos_dapur_receipt_settings", JSON.stringify(next));
+  };
+  const [tplBarista, setTplBarista] = useState(() => {
+    const saved = localStorage.getItem("pos_barista_receipt_settings");
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return { stickerMode: false, separateItems: false, largeNotes: true };
+  });
+
+  const updateTplBarista = (updates: any) => {
+    const next = { ...tplBarista, ...updates };
+    setTplBarista(next);
+    localStorage.setItem("pos_barista_receipt_settings", JSON.stringify(next));
+  };
 
   const updateTplKasir = (updates: any) => {
     const next = { ...tplKasir, ...updates };
@@ -151,14 +175,14 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
   const handleTestPrint = useCallback(async (role: string) => {
     setIsPrinting(true);
     try {
-      await testPrint(role);
+      await testPrint(role, tplKasir.paperSize || "58mm");
       onNotify("✅ Test print berhasil!", "success");
     } catch (err: any) {
       onNotify(`Gagal cetak: ${err?.message}`, "warning");
     } finally {
       setIsPrinting(false);
     }
-  }, [onNotify]);
+  }, [onNotify, tplKasir.paperSize]);
 
   const handleSave = (section: string) => {
     if (section === "Profil Toko") {
@@ -369,6 +393,35 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
                       {/* Kasir Settings */}
                       {printerMode === "Kasir" && (
                         <>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Ukuran Kertas Thermal</label>
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                              <button
+                                type="button"
+                                onClick={() => updateTplKasir({ paperSize: "58mm" })}
+                                className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                                  (tplKasir.paperSize || "58mm") === "58mm"
+                                    ? "border-[#4d3227] bg-orange-50/50 ring-2 ring-[#4d3227]/20"
+                                    : "border-slate-200 bg-white hover:bg-slate-50"
+                                }`}
+                              >
+                                <span className="font-bold text-sm text-slate-800">58 mm</span>
+                                <span className="text-[11px] text-slate-500 mt-1">Standar Kecil (32 Karakter)</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateTplKasir({ paperSize: "80mm" })}
+                                className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                                  tplKasir.paperSize === "80mm"
+                                    ? "border-[#4d3227] bg-orange-50/50 ring-2 ring-[#4d3227]/20"
+                                    : "border-slate-200 bg-white hover:bg-slate-50"
+                                }`}
+                              >
+                                <span className="font-bold text-sm text-slate-800">80 mm</span>
+                                <span className="text-[11px] text-slate-500 mt-1">Standar Besar (48 Karakter)</span>
+                              </button>
+                            </div>
+                          </div>
                           {renderToggle("Cetak Logo Toko", "Tampilkan logo hitam-putih teks di atas struk", tplKasir.showLogo, (v) => updateTplKasir({ showLogo: v }))}
                           {renderToggle("Tampilkan Nama Pemesan", "Cetak nama pelanggan jika dimasukkan saat checkout", tplKasir.showCustomerName, (v) => updateTplKasir({ showCustomerName: v }))}
                           {renderToggle("QR Code WiFi di Footer", "Tambahkan QR WiFi pelanggan di bawah struk", tplKasir.showWifi, (v) => updateTplKasir({ showWifi: v }))}
@@ -387,16 +440,17 @@ export default function POSSettingsView({ onNotify, products = [] }: POSSettings
                       {/* Dapur Settings */}
                       {printerMode === "Dapur" && (
                         <>
-                          {renderToggle("Cetak Otomatis (Auto-print)", "Langsung cetak tiket saat pesanan terkonfirmasi", tplDapur.autoPrint, (v) => setTplDapur({ ...tplDapur, autoPrint: v }))}
-                          {renderToggle("Perbesar Teks Catatan", "Cetak notes pelanggan lebih besar & tebal agar mudah dibaca dapur", tplDapur.largeNotes, (v) => setTplDapur({ ...tplDapur, largeNotes: v }))}
+                          {renderToggle("Cetak Otomatis (Auto-print)", "Langsung cetak tiket saat pesanan terkonfirmasi", tplDapur.autoPrint, (v) => updateTplDapur({ autoPrint: v }))}
+                          {renderToggle("Perbesar Teks Catatan", "Cetak notes pelanggan lebih besar & tebal agar mudah dibaca dapur", tplDapur.largeNotes, (v) => updateTplDapur({ largeNotes: v }))}
                         </>
                       )}
 
                       {/* Barista Settings */}
                       {printerMode === "Barista" && (
                         <>
-                          {renderToggle("Mode Stiker Cup (50mm)", "Ubah format ke kotak kecil cocok untuk printer stiker cup", tplBarista.stickerMode, (v) => setTplBarista({ ...tplBarista, stickerMode: v }))}
-                          {renderToggle("Pisahkan Tiket Per Item", "Setiap item minuman mendapat tiket/stiker tersendiri", tplBarista.separateItems, (v) => setTplBarista({ ...tplBarista, separateItems: v }))}
+                          {renderToggle("Perbesar Teks Catatan", "Cetak notes pelanggan lebih besar & tebal agar mudah dibaca barista", tplBarista.largeNotes, (v) => updateTplBarista({ largeNotes: v }))}
+                          {renderToggle("Mode Stiker Cup (50mm)", "Ubah format ke kotak kecil cocok untuk printer stiker cup", tplBarista.stickerMode, (v) => updateTplBarista({ stickerMode: v }))}
+                          {renderToggle("Pisahkan Tiket Per Item", "Setiap item minuman mendapat tiket/stiker tersendiri", tplBarista.separateItems, (v) => updateTplBarista({ separateItems: v }))}
                         </>
                       )}
 

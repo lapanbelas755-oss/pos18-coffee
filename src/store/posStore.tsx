@@ -97,6 +97,11 @@ export function PosProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('pos_promos', JSON.stringify(promos));
   }, [promos]);
 
+  // Persist kdsRouting whenever it changes
+  React.useEffect(() => {
+    localStorage.setItem('pos_kds_routing', JSON.stringify(kdsRouting));
+  }, [kdsRouting]);
+
   const triggerToast = (message: string, type: "success" | "warning" | "info" = "success") => {
     const id = Date.now().toString();
     setToasts(prev => [...prev, { id, message, type }]);

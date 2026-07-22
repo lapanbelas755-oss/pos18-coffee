@@ -46,14 +46,22 @@ export interface ReceiptData {
   lines: ReceiptLine[];
   feedLines?: number;
   cut?: boolean;
+  paperWidth?: number;
 }
 
 // ─── State (singleton) ────────────────────────────────────────────────────────
 const connectedPrinters: Record<string, PrinterDevice> = {};
 
+// ─── Helper: Format text left and right aligned ──────────────────────────────
+export function formatLeftRight(left: string, right: string, width: number = 32): string {
+  const space = Math.max(1, width - left.length - right.length);
+  return left + ' '.repeat(space) + right;
+}
+
 // ─── Helper: Build ESC/POS byte buffer from lines ─────────────────────────────
 function buildBuffer(data: ReceiptData): Uint8Array {
   const bytes: number[] = [];
+  const width = data.paperWidth || 32;
 
   const push = (...args: number[]) => bytes.push(...args);
   const text = (str: string) => {
@@ -80,7 +88,7 @@ function buildBuffer(data: ReceiptData): Uint8Array {
 
     // Separator line
     if (line.separator) {
-      text('--------------------------------');
+      text('-'.repeat(width));
     } else {
       text(line.text ?? '');
     }
@@ -172,7 +180,7 @@ async function findWritableCharacteristic(server: BluetoothRemoteGATTServer): Pr
  * Scan dan sambungkan ke printer Bluetooth terdekat.
  * Memunculkan native browser dialog pemilihan perangkat BT.
  */
-export async function scanAndConnect(role: string): Promise<PrinterDevice> {
+export async function scanAndConnect(role: string = 'Kasir'): Promise<PrinterDevice> {
   if (!navigator.bluetooth) {
     throw new Error('Web Bluetooth tidak didukung di browser ini. Gunakan Chrome/Edge.');
   }
@@ -232,7 +240,7 @@ export async function scanAndConnect(role: string): Promise<PrinterDevice> {
  * Coba sambungkan kembali ke printer yang tersimpan tanpa prompt.
  * Memerlukan browser yang mendukung navigator.bluetooth.getDevices() (Chrome >= 85 dengan flag, atau default di Chrome modern)
  */
-export async function reconnectPrinter(role: string): Promise<PrinterDevice | null> {
+export async function reconnectPrinter(role: string = 'Kasir'): Promise<PrinterDevice | null> {
   if (!navigator.bluetooth || typeof (navigator.bluetooth as any).getDevices !== 'function') {
     return null;
   }
@@ -275,7 +283,7 @@ export async function reconnectPrinter(role: string): Promise<PrinterDevice | nu
 }
 
 /** Disconnect dari printer aktif */
-export function disconnectPrinter(role: string) {
+export function disconnectPrinter(role: string = 'Kasir') {
   const printer = connectedPrinters[role];
   if (printer?.device.gatt?.connected) {
     printer.device.gatt.disconnect();
@@ -285,12 +293,12 @@ export function disconnectPrinter(role: string) {
 }
 
 /** Cek apakah ada printer yang terhubung */
-export function isConnected(role: string): boolean {
+export function isConnected(role: string = 'Kasir'): boolean {
   return !!(connectedPrinters[role]?.device.gatt?.connected);
 }
 
 /** Ambil info printer yang sedang terhubung */
-export function getConnectedPrinter(role: string): PrinterDevice | null {
+export function getConnectedPrinter(role: string = 'Kasir'): PrinterDevice | null {
   return connectedPrinters[role] || null;
 }
 
@@ -317,7 +325,7 @@ async function processQueue() {
 }
 
 /** Cetak dokumen (ReceiptData) ke printer yang aktif */
-export function printReceipt(data: ReceiptData, role: string): Promise<void> {
+export function printReceipt(data: ReceiptData, role: string = 'Kasir'): Promise<void> {
   return new Promise((resolve, reject) => {
     printQueue.push(async () => {
       try {
@@ -335,15 +343,16 @@ export function printReceipt(data: ReceiptData, role: string): Promise<void> {
 }
 
 /** Test print untuk memverifikasi koneksi printer */
-export async function testPrint(role: string): Promise<void> {
+export async function testPrint(role: string = 'Kasir', paperSize: "58mm" | "80mm" = "58mm"): Promise<void> {
+  const width = paperSize === "80mm" ? 48 : 32;
   const testData: ReceiptData = {
     lines: [
       { text: '',              align: 'center' },
       { text: 'Lapanbelas Coffee', align: 'center', bold: true, size: 'double' },
       { text: '',              align: 'center' },
-      { text: '==============================', align: 'left' },
+      { text: '-'.repeat(width), align: 'left' },
       { text: `  TEST PRINT ${role.toUpperCase()} BERHASIL!`, align: 'center', bold: true },
-      { text: '==============================', align: 'left' },
+      { text: '-'.repeat(width), align: 'left' },
       { text: '',              align: 'left' },
       { text: 'Printer terhubung dengan baik.', align: 'center' },
       { text: 'Aceh Tamiang',                   align: 'center' },
@@ -352,6 +361,7 @@ export async function testPrint(role: string): Promise<void> {
     ],
     feedLines: 3,
     cut: true,
+    paperWidth: width,
   };
 
   await printReceipt(testData, role);
@@ -375,7 +385,9 @@ export function buildKasirReceipt(order: {
   footerText?: string;
   showWifi?: boolean;
   queueNo?: string;
+  paperSize?: "58mm" | "80mm";
 }): ReceiptData {
+  const width = order.paperSize === "80mm" ? 48 : 32;
   const lines: ReceiptLine[] = [
     { text: order.storeName, align: 'center', bold: true, size: 'double-height' },
     { text: order.storeAddress, align: 'center' },
@@ -389,7 +401,8 @@ export function buildKasirReceipt(order: {
 
   for (const item of order.items) {
     const totalStr = `Rp. ${(item.qty * item.price).toLocaleString('id-ID')}`;
-    lines.push({ text: `${item.name} ( ${item.qty} x )`.padEnd(20) + totalStr.padStart(12), bold: true });
+    const leftPart = `${item.name} ( ${item.qty} x )`;
+    lines.push({ text: formatLeftRight(leftPart, totalStr, width), bold: true });
     
     let tipe = [];
     if (item.mood) tipe.push(item.mood);
@@ -406,32 +419,27 @@ export function buildKasirReceipt(order: {
   lines.push({ text: '', separator: true });
 
   if (order.subtotal !== undefined) {
-    lines.push({ text: `${'Subtotal :'.padEnd(16)}${order.subtotal.toLocaleString('id-ID').padStart(16)}` });
+    lines.push({ text: formatLeftRight('Subtotal :', order.subtotal.toLocaleString('id-ID'), width) });
   }
 
   if (order.discount !== undefined && order.discount > 0) {
     const discountLabel = order.discountName ? `Diskon (${order.discountName}):` : 'Diskon :';
     const discStr = `-${order.discount.toLocaleString('id-ID')}`;
-    if (discountLabel.length > 16) {
-      lines.push({ text: discountLabel });
-      lines.push({ text: `${''.padEnd(16)}${discStr.padStart(16)}` });
-    } else {
-      lines.push({ text: `${discountLabel.padEnd(16)}${discStr.padStart(16)}` });
-    }
+    lines.push({ text: formatLeftRight(discountLabel, discStr, width) });
   }
 
   if (order.tax !== undefined && order.tax > 0) {
-    lines.push({ text: `${'Pajak (PB1) :'.padEnd(16)}${order.tax.toLocaleString('id-ID').padStart(16)}` });
+    lines.push({ text: formatLeftRight('Pajak (PB1) :', order.tax.toLocaleString('id-ID'), width) });
   }
 
-  lines.push({ text: `${'Total :'.padEnd(16)}${order.total.toLocaleString('id-ID').padStart(16)}`, bold: true });
+  lines.push({ text: formatLeftRight('Total :', order.total.toLocaleString('id-ID'), width), bold: true });
 
   const isCash = order.paymentMethod.toLowerCase().includes('cash') || order.paymentMethod.toLowerCase().includes('tunai');
 
   if (isCash) {
     lines.push(
-      { text: `${'Bayar :'.padEnd(16)}${order.paid.toLocaleString('id-ID').padStart(16)}` },
-      { text: `${'Kembali :'.padEnd(16)}${order.change.toLocaleString('id-ID').padStart(16)}`, bold: true }
+      { text: formatLeftRight('Bayar :', order.paid.toLocaleString('id-ID'), width) },
+      { text: formatLeftRight('Kembali :', order.change.toLocaleString('id-ID'), width), bold: true }
     );
   }
 
@@ -454,7 +462,7 @@ export function buildKasirReceipt(order: {
     { text: order.footerText ?? 'Terima kasih atas kunjungan Anda!', align: 'center' },
   );
 
-  return { lines, feedLines: 3, cut: true };
+  return { lines, feedLines: 3, cut: true, paperWidth: width };
 }
 
 /** Helper: Buat tiket dapur dari data order */
@@ -465,7 +473,9 @@ export function buildDapurTicket(order: {
   queueNo?: string;
   items: { name: string; qty: number; notes?: string }[];
   largeNotes?: boolean;
+  paperSize?: "58mm" | "80mm";
 }): ReceiptData {
+  const width = order.paperSize === "80mm" ? 48 : 32;
   const lines: ReceiptLine[] = [
     { text: '-- TIKET KITCHEN --', align: 'center', bold: true },
     { text: order.tableNo ? `MEJA ${order.tableNo}` : 'TAKE AWAY', align: 'center', bold: true, size: 'double' },
@@ -487,7 +497,7 @@ export function buildDapurTicket(order: {
     lines.push({ text: '' });
   }
 
-  return { lines, feedLines: 2, cut: true };
+  return { lines, feedLines: 2, cut: true, paperWidth: width };
 }
 
 /** Helper: Buat tiket barista dari data order */
@@ -496,14 +506,18 @@ export function buildBaristaTicket(order: {
   tableNo?: string;
   customerName?: string;
   queueNo?: string;
-  item: { name: string; size?: string; sugar?: string; ice?: string; mood?: string; notes?: string };
-  itemIndex: number;
-  totalItems: number;
+  item?: { name: string; size?: string; sugar?: string; ice?: string; mood?: string; notes?: string };
+  items?: { name: string; qty: number; notes?: string; size?: string; sugar?: string; ice?: string; mood?: string }[];
+  itemIndex?: number;
+  totalItems?: number;
   stickerMode?: boolean;
   qty?: number;
+  paperSize?: "58mm" | "80mm";
+  largeNotes?: boolean;
 }): ReceiptData {
-  if (order.stickerMode) {
-    // Format kotak kecil (50mm thermal / label)
+  const width = order.paperSize === "80mm" ? 48 : 32;
+
+  if (order.stickerMode && order.item) {
     return {
       lines: [
         { text: `MEJA ${order.tableNo ?? '-'}   #${order.itemIndex}/${order.totalItems}`, bold: true },
@@ -512,31 +526,56 @@ export function buildBaristaTicket(order: {
         { text: `${order.item.size ?? ''} | ${order.item.mood ?? ''}` },
         ...(order.item.sugar ? [{ text: `Gula: ${order.item.sugar}` } as ReceiptLine] : []),
         ...(order.item.ice   ? [{ text: `Es  : ${order.item.ice}` }   as ReceiptLine] : []),
-        ...(order.item.notes ? [{ text: `*${order.item.notes}*`, bold: true } as ReceiptLine] : []),
+        ...(order.item.notes ? [{ text: `*${order.item.notes}*`, bold: true, size: order.largeNotes ? 'double-height' : undefined } as ReceiptLine] : []),
       ],
       feedLines: 2,
       cut: true,
+      paperWidth: width,
     };
   }
 
-  let tipe = [];
-  if (order.item.mood) tipe.push(order.item.mood);
-  if (order.item.ice) tipe.push(order.item.ice);
+  const lines: ReceiptLine[] = [
+    { text: '-- TIKET BARISTA --', align: 'center', bold: true },
+    { text: order.tableNo ? `MEJA ${order.tableNo}` : 'TAKE AWAY', align: 'center', bold: true, size: 'double' },
+    { text: '', separator: true },
+    ...(order.queueNo ? [{ text: `Antrian : ${order.queueNo}`, bold: true } as ReceiptLine] : []),
+    { text: `Nama : ${order.customerName || '-'}` },
+    { text: `order #${order.orderId}` },
+    { text: '', separator: true },
+  ];
+
+  const itemList = order.items || (order.item ? [{
+    name: order.item.name,
+    qty: order.qty || 1,
+    notes: order.item.notes,
+    mood: order.item.mood,
+    ice: order.item.ice,
+    sugar: order.item.sugar
+  }] : []);
+
+  for (const item of itemList) {
+    lines.push({ text: `${item.name} ( ${item.qty} x )`, bold: true });
+    let tipe = [];
+    if (item.mood) tipe.push(item.mood);
+    if (item.ice) tipe.push(item.ice);
+    if (item.sugar) tipe.push(`Gula: ${item.sugar}`);
+    if (tipe.length > 0) {
+      lines.push({ text: `tipe : ( ${tipe.join('/').toLowerCase()} )` } as ReceiptLine);
+    }
+    if (item.notes) {
+      lines.push({
+        text: `Catatan : ${item.notes}`,
+        bold: true,
+        size: order.largeNotes ? 'double-height' : undefined
+      } as ReceiptLine);
+    }
+    lines.push({ text: '' });
+  }
 
   return {
-    lines: [
-      { text: '-- TIKET BARISTA --', align: 'center', bold: true },
-      { text: order.tableNo ? `MEJA ${order.tableNo}` : 'TAKE AWAY', align: 'center', bold: true, size: 'double' },
-      { text: '', separator: true },
-      ...(order.queueNo ? [{ text: `Antrian : ${order.queueNo}`, bold: true } as ReceiptLine] : []),
-      { text: `Nama : ${order.customerName || '-'}` },
-      { text: `order #${order.orderId}` },
-      { text: '', separator: true },
-      { text: `${order.item.name} ( ${order.qty || 1} x )`, bold: true },
-      ...(tipe.length > 0 ? [{ text: `tipe : ( ${tipe.join('/').toLowerCase()} )` } as ReceiptLine] : []),
-      ...(order.item.notes ? [{ text: `Catatan : ${order.item.notes}`, bold: true } as ReceiptLine] : []),
-    ],
+    lines,
     feedLines: 2,
     cut: true,
+    paperWidth: width,
   };
 }

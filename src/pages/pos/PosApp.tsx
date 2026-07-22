@@ -469,12 +469,14 @@ export default function PosApp() {
 
       let footerText = "Terima kasih atas kunjungan Anda!\\nFollow IG: @pos18.coffee";
       let showWifi = true;
+      let paperSize: "58mm" | "80mm" = "58mm";
       const savedReceiptSettings = localStorage.getItem("pos_receipt_settings");
       if (savedReceiptSettings) {
         try {
           const s = JSON.parse(savedReceiptSettings);
           if (s.footerText !== undefined) footerText = s.footerText;
           if (s.showWifi !== undefined) showWifi = s.showWifi;
+          if (s.paperSize === "80mm") paperSize = "80mm";
         } catch (e) {}
       }
 
@@ -484,7 +486,7 @@ export default function PosApp() {
         cashierName: currentUser?.name.split(' ')[0] || "Kasir",
         tableNo: receiptData.table,
         queueNo: receiptData.queue,
-        items: receiptData.items.map(i => ({ name: i.name, qty: i.qty, price: i.price, mood: i.mood, ice: i.ice, sugar: i.sugar, notes: i.notes })),
+        items: receiptData.items.map(i => ({ name: i.name, qty: i.qty, price: i.price, notes: i.notes })),
         subtotal: receiptData.subtotal,
         discount: receiptData.discount,
         discountName: receiptData.discountName,
@@ -495,6 +497,7 @@ export default function PosApp() {
         paymentMethod: receiptData.paymentMethod || "UNKNOWN",
         footerText,
         showWifi,
+        paperSize,
       });
       printReceipt(dataToPrint, "Kasir").catch(() => { });
     }
@@ -556,20 +559,28 @@ export default function PosApp() {
         });
 
         // Print KDS Ticket if printer connected
-        if (connectedPrinters.barista) {
-          baristaCart.forEach((i, idx) => {
-            const bData = buildBaristaTicket({
-              orderId: ticketId,
-              tableNo: tableName || undefined,
-              customerName: finalCustomerName,
-              item: { name: i.product.name, notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ") },
-              itemIndex: idx + 1,
-              totalItems: baristaCart.length,
-              stickerMode: false,
+        if (connectedPrinters.barista && baristaCart.length > 0) {
+          let largeNotes = true;
+          try {
+            const saved = localStorage.getItem("pos_barista_receipt_settings");
+            if (saved) {
+              const p = JSON.parse(saved);
+              if (p.largeNotes !== undefined) largeNotes = Boolean(p.largeNotes);
+            }
+          } catch (e) {}
+
+          const bData = buildBaristaTicket({
+            orderId: ticketId,
+            tableNo: tableName || undefined,
+            customerName: finalCustomerName,
+            largeNotes,
+            items: baristaCart.map(i => ({
+              name: i.product.name,
               qty: i.quantity,
-            });
-            printReceipt(bData, "Barista").catch(() => { });
+              notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ")
+            }))
           });
+          printReceipt(bData, "Barista").catch(() => { });
         }
       }
 
@@ -609,7 +620,7 @@ export default function PosApp() {
             orderId: ticketId,
             tableNo: tableName || undefined,
             customerName: finalCustomerName,
-            items: kitchenCart.map(i => ({ name: `${i.quantity}x ${i.product.name}`, qty: i.quantity, notes: i.notes || "" })),
+            items: kitchenCart.map(i => ({ name: i.product.name, qty: i.quantity, notes: i.notes || "" })),
           });
           printReceipt(dData, "Dapur").catch(() => { });
         }
@@ -1088,20 +1099,28 @@ export default function PosApp() {
             customer_name: customerName || null
           });
 
-          if (connectedPrinters.barista) {
-            baristaCart.forEach((i, idx) => {
-              const bData = buildBaristaTicket({
-                orderId: ticketId + (existingOrder ? " (TAMBAHAN)" : ""),
-                tableNo: tableName || undefined,
-                customerName: customerName,
-                item: { name: i.product.name, notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ") },
-                itemIndex: idx + 1,
-                totalItems: baristaCart.length,
-                stickerMode: false,
+          if (connectedPrinters.barista && baristaCart.length > 0) {
+            let largeNotes = true;
+            try {
+              const saved = localStorage.getItem("pos_barista_receipt_settings");
+              if (saved) {
+                const p = JSON.parse(saved);
+                if (p.largeNotes !== undefined) largeNotes = Boolean(p.largeNotes);
+              }
+            } catch (e) {}
+
+            const bData = buildBaristaTicket({
+              orderId: ticketId + (existingOrder ? " (TAMBAHAN)" : ""),
+              tableNo: tableName || undefined,
+              customerName: customerName,
+              largeNotes,
+              items: baristaCart.map(i => ({
+                name: i.product.name,
                 qty: i.quantity,
-              });
-              printReceipt(bData, "Barista").catch(() => { });
+                notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ")
+              }))
             });
+            printReceipt(bData, "Barista").catch(() => { });
           }
         }
 
@@ -1140,7 +1159,7 @@ export default function PosApp() {
               orderId: ticketId + (existingOrder ? " (TAMBAHAN)" : ""),
               tableNo: tableName || undefined,
               customerName: customerName,
-              items: kitchenCart.map(i => ({ name: `${i.quantity}x ${i.product.name}`, qty: i.quantity, notes: i.notes || "" })),
+              items: kitchenCart.map(i => ({ name: i.product.name, qty: i.quantity, notes: i.notes || "" })),
             });
             printReceipt(dData, "Dapur").catch(() => { });
           }
@@ -1293,19 +1312,27 @@ export default function PosApp() {
     const kitchenCart = order.items.filter(i => isKitchenItem(i.product.category));
 
     if (connectedPrinters.barista && baristaCart.length > 0) {
-      baristaCart.forEach((i, idx) => {
-        const bData = buildBaristaTicket({
-          orderId: ticketId + " (REPRINT)",
-          tableNo: tableName || undefined,
-          customerName: order.customerName,
-          item: { name: i.product.name, notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ") },
-          itemIndex: idx + 1,
-          totalItems: baristaCart.length,
-          stickerMode: false,
+      let largeNotes = true;
+      try {
+        const saved = localStorage.getItem("pos_barista_receipt_settings");
+        if (saved) {
+          const p = JSON.parse(saved);
+          if (p.largeNotes !== undefined) largeNotes = Boolean(p.largeNotes);
+        }
+      } catch (e) {}
+
+      const bData = buildBaristaTicket({
+        orderId: ticketId + " (REPRINT)",
+        tableNo: tableName || undefined,
+        customerName: order.customerName,
+        largeNotes,
+        items: baristaCart.map(i => ({
+          name: i.product.name,
           qty: i.quantity,
-        });
-        printReceipt(bData, "Barista").catch(() => { });
+          notes: [i.selectedMood, i.notes].filter(Boolean).join(" - ")
+        }))
       });
+      printReceipt(bData, "Barista").catch(() => { });
       triggerToast("Checker Barista sedang dicetak ulang.", "info");
     }
 
@@ -1314,8 +1341,8 @@ export default function PosApp() {
         orderId: ticketId + " (REPRINT)",
         tableNo: tableName || undefined,
         items: kitchenCart.map(i => ({ 
-          name: `${i.quantity}x ${i.product.name}`, 
-          qty: 1, 
+          name: i.product.name, 
+          qty: i.quantity, 
           notes: i.notes || ""
         })),
       });
