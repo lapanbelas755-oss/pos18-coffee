@@ -231,6 +231,47 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
     setQrisOrderId(null);
   }, [partialTotal, activeTab]);
 
+  // ── Sync Customer Display in real-time for all tabs (Penuh, Split Pax, Split Item) ──
+  useEffect(() => {
+    let itemsToDisplay = cart.map(item => ({
+      name: item.product.name, qty: item.quantity,
+      price: calculateItemUnitPrice(item), notes: item.notes || undefined,
+    }));
+    let subtotalToDisplay = cartSubtotal;
+    let totalToDisplay = finalTotal;
+    let taxToDisplay = Math.max(0, total - subtotalToDisplay);
+    let discountToDisplay = discountAmount;
+
+    if (activeTab === "Item") {
+      itemsToDisplay = selectedItems.map(item => ({
+        name: item.product.name, qty: item.quantity,
+        price: calculateItemUnitPrice(item), notes: item.notes || undefined,
+      }));
+      subtotalToDisplay = partialSubtotal;
+      totalToDisplay = partialTotal;
+      taxToDisplay = Math.max(0, partialTotal - partialSubtotal);
+      discountToDisplay = 0;
+    } else if (activeTab === "Split") {
+      totalToDisplay = Math.round(finalTotal / splitBy);
+    }
+
+    broadcastToDisplay({
+      state: "payment",
+      paymentMethod: method,
+      qrisUrl: method === "QRIS" ? qrisUrl : null,
+      qrisTimer: method === "QRIS" ? qrisTimer : undefined,
+      items: itemsToDisplay,
+      subtotal: subtotalToDisplay,
+      discount: discountToDisplay,
+      discountName: appliedPromo?.title,
+      tax: taxToDisplay,
+      total: totalToDisplay,
+      customerName,
+      given: method === "Cash" && givenNum > 0 ? givenNum : undefined,
+      change: method === "Cash" && (givenNum - totalToDisplay) >= 0 ? (givenNum - totalToDisplay) : undefined,
+    });
+  }, [activeTab, selectedItemIds, splitBy, method, qrisUrl, qrisTimer, givenNum, finalTotal, partialTotal, partialSubtotal, cartSubtotal, total, discountAmount, customerName]);
+
   // Validation for Penuh
   const isPenuhValid = method === "QRIS" || (method === "Cash" && givenNum >= finalTotal);
 
