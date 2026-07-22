@@ -16,6 +16,7 @@ import QueueDisplayAdmin from "./QueueDisplayAdmin";
 
 import ReportAdmin from "./ReportAdmin";
 import EmployeeAdmin from "./EmployeeAdmin";
+import CustomerAdmin from "./CustomerAdmin";
 
 function AdminPinLogin({ onAuthorized }: { onAuthorized: () => void }) {
   const navigate = useNavigate();
@@ -264,6 +265,7 @@ export default function AdminApp() {
           <Route path="queue-display" element={<QueueDisplayAdmin />} />
           <Route path="report" element={<ReportAdmin orders={posOrders} recipes={recipes} stockItems={stockItems} />} />
           <Route path="employees" element={<EmployeeAdmin />} />
+          <Route path="customers" element={<CustomerAdmin posOrders={posOrders} transactions={transactions} tables={tables} />} />
         </Route>
       </Routes>
     </>

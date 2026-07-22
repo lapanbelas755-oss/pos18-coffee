@@ -38,12 +38,13 @@ export default function AdminLayout() {
       defaultOpen: location.pathname.includes("/admin/menu") || location.pathname.includes("/admin/recipe")
     },
     {
-      title: "Order & Customer",
+      title: "Order & Shift",
       icon: "shopping_bag",
       items: [
         { id: "/admin/orders", name: "Order", icon: "" },
+        { id: "/admin/customers", name: "Riwayat Shift", icon: "" },
       ],
-      defaultOpen: location.pathname.includes("/admin/orders")
+      defaultOpen: location.pathname.includes("/admin/orders") || location.pathname.includes("/admin/customers")
     },
     {
       title: "Inventory",
