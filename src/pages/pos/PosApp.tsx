@@ -865,23 +865,76 @@ export default function PosApp() {
       }));
     }
 
+    // Dapatkan data shift aktif saat checkout
+    let currentShiftLabel = "Shift 1";
+    let currentShiftId: string | undefined = undefined;
+    try {
+      const savedShift = localStorage.getItem("current_shift");
+      if (savedShift) {
+        const sData = JSON.parse(savedShift);
+        if (sData.isOpen) {
+          const openHour = new Date(sData.openedAt).getHours();
+          currentShiftLabel = openHour < 15 ? "Shift 1" : "Shift 2";
+          currentShiftId = `SHIFT-${sData.openedAt}`;
+        }
+      }
+    } catch(e) {}
+
     const newOrder: Order = {
       id: `INV-${ticketId}`,
       queue: ticketId.split('-')[1],
       staff: currentUser?.name.split(' ')[0] || "Kasir",
+      shiftId: currentShiftId,
+      shiftLabel: currentShiftLabel,
+      outlet: "LapanbelasCoffee",
+      posDevice: "POS Kasir 1",
       table: activeTableId || "-",
       pager: "-",
-      customerName: checkoutCustomerName, // Save to order
+      customerName: checkoutCustomerName,
       type: (activeTableId ? "Dine In" : "Take Out") as Order["type"],
       payment: method,
       amountGiven,
       change,
       status: "Selesai" as Order["status"],
       total,
+      subtotal,
+      discount,
+      tax,
       time: new Date().toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
       items: itemsToCheckOut,
       created_at: new Date().toISOString()
     };
+
+    // Update / Sinkronkan data customer
+    if (checkoutCustomerName) {
+      try {
+        const savedCust = localStorage.getItem("pos_customers");
+        let custList: any[] = savedCust ? JSON.parse(savedCust) : [];
+        const cIdx = custList.findIndex(c => c.name.toLowerCase().trim() === checkoutCustomerName.toLowerCase().trim());
+        if (cIdx >= 0) {
+          custList[cIdx].totalOrders = (custList[cIdx].totalOrders || 0) + 1;
+          custList[cIdx].totalSpending = (custList[cIdx].totalSpending || 0) + total;
+          custList[cIdx].favoritePayment = method;
+          custList[cIdx].lastVisit = new Date().toLocaleString("id-ID");
+          custList[cIdx].lastShift = currentShiftLabel;
+          custList[cIdx].lastKasir = currentUser?.name || "Kasir";
+        } else {
+          custList.push({
+            id: `CUST-${Date.now()}`,
+            name: checkoutCustomerName,
+            totalOrders: 1,
+            totalSpending: total,
+            favoritePayment: method,
+            lastVisit: new Date().toLocaleString("id-ID"),
+            lastShift: currentShiftLabel,
+            lastKasir: currentUser?.name || "Kasir",
+            outlet: "LapanbelasCoffee",
+            isNew: true
+          });
+        }
+        localStorage.setItem("pos_customers", JSON.stringify(custList));
+      } catch(e) {}
+    }
 
     setPosOrders(prev => {
       if (activeTableId) {

@@ -113,10 +113,11 @@ export default function EmployeeAdmin() {
         const firstName = emp.name.split(' ')[0].toUpperCase();
         const code = `EMP-${firstName}-${dateCode}`;
         
-        // Cek apakah sudah ada untuk hari ini
-        if (!newPromos.find(p => p.code === code && p.validUntil === dateStr)) {
+        // Cek apakah karyawan ini sudah dibuatkan voucher aktif untuk tanggal hari ini
+        const existingToday = newPromos.find(p => p.type === 'Karyawan' && p.employeeId === emp.id && p.validUntil === dateStr);
+        if (!existingToday) {
           newPromos.unshift({
-            id: `VCH-${emp.id}-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+            id: `VCH-${emp.id}-${dateStr}`,
             title: `Voucher Minum ${emp.name}`,
             code,
             type: "Karyawan",
@@ -125,7 +126,7 @@ export default function EmployeeAdmin() {
             status: "Aktif",
             usage: 0,
             employeeId: emp.id,
-            shift: "Karyawan" as any // Dummy value
+            shift: "Karyawan" as any
           });
           generatedVouchers.push(`- ${emp.name}: <code>${code}</code>`);
           count++;
@@ -146,31 +147,34 @@ export default function EmployeeAdmin() {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-[1200px] mx-auto h-full pb-10">
+    <div className="flex flex-col gap-6 max-w-[1200px] mx-auto min-h-0 flex-1 pb-10">
       {/* Header */}
-      <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex-wrap gap-4">
-        <h2 className="text-2xl font-black text-slate-800">Manajemen Karyawan</h2>
-        <div className="flex gap-3 flex-wrap">
+      <div className="flex justify-between items-start sm:items-center bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex-col sm:flex-row gap-4">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-800">Manajemen Karyawan</h2>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">Kelola akun staf, hak akses modul, dan jatah voucher harian.</p>
+        </div>
+        <div className="flex gap-2 flex-wrap w-full sm:w-auto">
           <a href="/kds" target="_blank"
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-3 rounded-xl font-black text-sm transition-colors flex items-center gap-2">
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl font-black text-xs sm:text-sm transition-colors flex items-center justify-center gap-1.5 flex-1 sm:flex-none">
             <span className="material-symbols-outlined text-[18px]">open_in_new</span>
             Buka KDS
           </a>
           {(!currentUser || currentUser?.role === 'Admin' || currentUser?.role === 'Manajer') && (
-            <div className="flex gap-2">
+            <>
               <button onClick={() => setShowTelegramModal(true)}
-                className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-3 rounded-xl font-bold text-sm shadow-sm transition-colors flex items-center justify-center" title="Pengaturan Notifikasi Telegram">
+                className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-xs transition-colors flex items-center justify-center" title="Pengaturan Notifikasi Telegram">
                 <span className="material-symbols-outlined text-[20px]">notifications_active</span>
               </button>
               <button onClick={handleGenerateVouchers}
-                className="bg-amber-100 text-amber-800 hover:bg-amber-200 px-5 py-3 rounded-xl font-bold text-sm shadow-md transition-colors flex items-center gap-2">
+                className="bg-amber-100 text-amber-800 hover:bg-amber-200 px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-sm transition-colors flex items-center justify-center gap-1.5 flex-1 sm:flex-none">
                 <span className="material-symbols-outlined text-[18px]">local_cafe</span>
-                Generate Voucher Harian
+                Voucher Harian
               </button>
-            </div>
+            </>
           )}
           <button onClick={() => handleOpen()}
-            className="bg-[#4a2d21] text-white hover:bg-[#382016] px-5 py-3 rounded-xl font-bold text-sm shadow-md transition-colors flex items-center gap-2">
+            className="bg-[#4a2d21] text-white hover:bg-[#382016] px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-md transition-colors flex items-center justify-center gap-1.5 w-full sm:w-auto">
             <span className="material-symbols-outlined text-[18px]">add</span>
             Tambah Karyawan
           </button>
@@ -178,9 +182,9 @@ export default function EmployeeAdmin() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex-1 min-h-0 flex flex-col">
         <div className="overflow-auto custom-scrollbar flex-1">
-          <table className="w-full text-left text-sm text-slate-700 min-w-[900px]">
+          <table className="w-full text-left text-sm text-slate-700 min-w-[750px]">
             <thead className="bg-[#fafafa] text-slate-500 font-bold border-b border-slate-200">
               <tr>
                 <th className="p-5 text-[11px] uppercase tracking-widest text-center">ID</th>

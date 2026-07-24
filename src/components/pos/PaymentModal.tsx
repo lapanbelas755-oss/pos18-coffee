@@ -790,8 +790,28 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
                 />
                 <button 
                   onClick={() => {
-                    const found = promos?.find(p => p.code === promoCodeInput && p.status === "Aktif");
-                    if (found) { setAppliedPromo(found); setShowPromoModal(false); }
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const found = promos?.find(p => p.code === promoCodeInput);
+                    if (!found) {
+                      alert("Kode voucher tidak ditemukan!");
+                      return;
+                    }
+                    if (found.status !== "Aktif") {
+                      alert(`Voucher ${found.code} sudah tidak aktif atau sudah ${found.status.toLowerCase()}!`);
+                      return;
+                    }
+                    if (found.type === "Karyawan") {
+                      if (found.validUntil !== todayStr) {
+                        alert(`Voucher ${found.code} sudah kadaluarsa (berlaku tgl ${found.validUntil}).`);
+                        return;
+                      }
+                      if (found.usage > 0 || found.status === "Terpakai") {
+                        alert(`Voucher ${found.code} sudah pernah digunakan hari ini (Maksimal 1x per hari).`);
+                        return;
+                      }
+                    }
+                    setAppliedPromo(found);
+                    setShowPromoModal(false);
                   }}
                   className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
                 >

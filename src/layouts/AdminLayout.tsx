@@ -1,11 +1,14 @@
 import React, { useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { useAuthStore } from "../store/authStore";
+import { EmployeePermissions } from "../types";
 
 export default function AdminLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { currentUser } = useAuthStore();
 
   // Mapping routes for active state and title
   const getPageTitle = () => {
@@ -22,7 +25,21 @@ export default function AdminLayout() {
     setOpenGroups(prev => ({ ...prev, [title]: !isGroupOpen(title) }));
   };
 
-  const navGroups = [
+  interface NavItem {
+    id: string;
+    name: string;
+    icon: string;
+    permKey?: keyof EmployeePermissions;
+  }
+
+  interface NavGroup {
+    title?: string;
+    icon?: string;
+    items: NavItem[];
+    defaultOpen?: boolean;
+  }
+
+  const rawNavGroups: NavGroup[] = [
     {
       items: [
         { id: "/admin", name: "Dashboard", icon: "home" },
@@ -33,7 +50,7 @@ export default function AdminLayout() {
       icon: "restaurant_menu",
       items: [
         { id: "/admin/menu", name: "Items", icon: "" },
-        { id: "/admin/recipes", name: "Resep & Gramasi", icon: "" },
+        { id: "/admin/recipes", name: "Resep & Gramasi", icon: "", permKey: "admin" },
       ],
       defaultOpen: location.pathname.includes("/admin/menu") || location.pathname.includes("/admin/recipe")
     },
@@ -56,13 +73,23 @@ export default function AdminLayout() {
     },
     {
       items: [
-        { id: "/admin/finance", name: "Keuangan", icon: "account_balance" },
-        { id: "/admin/report", name: "Laporan", icon: "monitoring" },
-        { id: "/admin/employees", name: "Karyawan", icon: "group" },
+        { id: "/admin/finance", name: "Keuangan", icon: "account_balance", permKey: "admin" },
+        { id: "/admin/report", name: "Laporan", icon: "monitoring", permKey: "reports" },
+        { id: "/admin/employees", name: "Karyawan", icon: "group", permKey: "admin" },
         { id: "/pos", name: "Kembali ke POS", icon: "point_of_sale" },
       ]
     }
   ];
+
+  // Filter menu items based on currentUser permissions
+  const navGroups = rawNavGroups.map(group => ({
+    ...group,
+    items: group.items.filter(item => {
+      if (!item.permKey) return true;
+      if (!currentUser) return true; // Default allow if PIN-authorized
+      return !!currentUser.permissions[item.permKey];
+    })
+  })).filter(group => group.items.length > 0);
 
   const isGroupOpen = (title: string) => {
     const group = navGroups.find(g => g.title === title);
@@ -71,40 +98,60 @@ export default function AdminLayout() {
     return group.defaultOpen;
   };
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
-    <div className="flex h-screen w-screen bg-[#faf6f3] font-sans text-slate-800 antialiased overflow-hidden">
+    <div className="flex h-screen w-screen bg-[#faf6f3] font-sans text-slate-800 antialiased overflow-hidden relative touch-pan-y">
       
+      {/* Mobile Drawer Backdrop Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 md:hidden transition-opacity duration-300"
+        />
+      )}
+
       {/* Sidebar Navigation */}
       <aside
         className={`bg-white border-r border-slate-200 flex flex-col transition-all duration-300 z-50 flex-shrink-0 shadow-sm ${
           sidebarCollapsed ? "w-20" : "w-[260px]"
+        } md:static fixed top-0 bottom-0 left-0 h-full ${
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
         {/* Header Logo */}
         <div className="h-[60px] border-b border-slate-100 flex items-center justify-between px-4">
-          {!sidebarCollapsed && (
+          {(!sidebarCollapsed || mobileMenuOpen) && (
             <div className="flex items-center gap-2 text-[#4a2d21]">
               <img src="/logo.png" alt="LB Coffee Logo" className="w-8 h-8 object-contain rounded" />
               <span className="font-bold text-xl tracking-tight">LB Coffee</span>
             </div>
           )}
           <button 
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            onClick={() => {
+              if (window.innerWidth < 768) {
+                setMobileMenuOpen(false);
+              } else {
+                setSidebarCollapsed(!sidebarCollapsed);
+              }
+            }}
             className="text-slate-400 hover:text-[#4a2d21] p-1 rounded"
           >
-            <span className="material-symbols-outlined text-[24px]">menu</span>
+            <span className="material-symbols-outlined text-[24px]">
+              {mobileMenuOpen ? "close" : "menu"}
+            </span>
           </button>
         </div>
 
         {/* Profile Info */}
-        {!sidebarCollapsed && (
+        {(!sidebarCollapsed || mobileMenuOpen) && (
           <div className="p-4 flex items-center gap-3 border-b border-slate-100">
-            <div className="w-10 h-10 rounded-full bg-[#4a2d21] text-white flex items-center justify-center font-bold text-lg shadow-sm">
-              L
+            <div className="w-10 h-10 rounded-full bg-[#4a2d21] text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
+              {(currentUser?.name || "L")[0].toUpperCase()}
             </div>
-            <div className="flex flex-col">
-              <span className="font-bold text-sm text-slate-800 leading-tight">LapanbelasCoffee</span>
-              <span className="text-xs text-slate-500">Admin</span>
+            <div className="flex flex-col overflow-hidden">
+              <span className="font-bold text-sm text-slate-800 leading-tight truncate">{currentUser?.name || "LapanbelasCoffee"}</span>
+              <span className="text-xs text-slate-500 font-semibold">{currentUser?.role || "Admin"}</span>
             </div>
           </div>
         )}
@@ -116,8 +163,8 @@ export default function AdminLayout() {
             return (
             <div key={groupIdx} className="mb-2">
               {/* If group has a main title (dropdown parent) */}
-              {group.title && !sidebarCollapsed && (
-                <div onClick={() => toggleGroup(group.title)} className="px-4 py-2 flex items-center justify-between text-slate-500 cursor-pointer hover:bg-slate-50">
+              {group.title && (!sidebarCollapsed || mobileMenuOpen) && (
+                <div onClick={() => toggleGroup(group.title)} className="px-4 py-2 flex items-center justify-between text-slate-500 cursor-pointer hover:bg-slate-50 select-none">
                   <div className="flex items-center gap-3">
                     <span className="material-symbols-outlined text-[20px]">{group.icon}</span>
                     <span className="text-sm font-medium">{group.title}</span>
@@ -129,7 +176,7 @@ export default function AdminLayout() {
               )}
 
               {/* Items mapping */}
-              {(!group.title || isOpen || sidebarCollapsed) && (
+              {(!group.title || isOpen || sidebarCollapsed || mobileMenuOpen) && (
                 <div className="flex flex-col">
                   {group.items.map(item => {
                     const isActive = location.pathname === item.id;
@@ -138,16 +185,19 @@ export default function AdminLayout() {
                     return (
                       <button
                         key={item.id}
-                        onClick={() => navigate(item.id)}
-                        className={`w-full py-2.5 flex items-center transition-colors text-left relative ${
-                          sidebarCollapsed ? "justify-center px-0" : isSubItem ? "px-11" : "px-4 gap-3"
+                        onClick={() => {
+                          navigate(item.id);
+                          setMobileMenuOpen(false);
+                        }}
+                        className={`w-full py-2.5 flex items-center transition-colors text-left relative select-none ${
+                          sidebarCollapsed && !mobileMenuOpen ? "justify-center px-0" : isSubItem ? "px-11" : "px-4 gap-3"
                         } ${
                           isActive
                             ? "bg-[#f4ece3] text-[#4a2d21] font-bold"
                             : "text-slate-600 hover:bg-slate-50 font-medium"
                         }`}
                       >
-                        {isActive && !sidebarCollapsed && (
+                        {isActive && (
                           <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#4a2d21]" />
                         )}
                         
@@ -157,14 +207,11 @@ export default function AdminLayout() {
                           </span>
                         )}
                         
-                        {!sidebarCollapsed && (
+                        {(!sidebarCollapsed || mobileMenuOpen) && (
                           <span className={`text-[13px] ${isSubItem && isActive ? "text-[#4a2d21]" : ""}`}>
                             {item.name}
                           </span>
                         )}
-
-
-
                       </button>
                     );
                   })}
@@ -174,10 +221,13 @@ export default function AdminLayout() {
             );
           })}
 
-          {/* Static entry for Queue Display to match screenshot 4 */}
+          {/* Static entry for Queue Display */}
           <button
-            onClick={() => navigate("/admin/queue-display")}
-            className={`w-full py-2.5 px-4 flex items-center gap-3 transition-colors text-left relative ${
+            onClick={() => {
+              navigate("/admin/queue-display");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full py-2.5 px-4 flex items-center gap-3 transition-colors text-left relative select-none ${
               location.pathname.includes("/admin/queue-display") ? "bg-[#f4ece3] text-[#4a2d21] font-bold" : "text-slate-600 hover:bg-slate-50 font-medium"
             }`}
           >
@@ -185,49 +235,55 @@ export default function AdminLayout() {
             <span className={`material-symbols-outlined text-[20px] ${location.pathname.includes("/admin/queue-display") ? "text-[#4a2d21]" : "text-slate-500"}`}>
               live_tv
             </span>
-            {!sidebarCollapsed && <span className="text-[13px]">Queue Number Display</span>}
+            {(!sidebarCollapsed || mobileMenuOpen) && <span className="text-[13px]">Queue Number Display</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Workspace Frame container */}
-      <main className="flex-1 flex flex-col h-full bg-[#faf6f3] overflow-hidden relative">
+      <main className="flex-1 flex flex-col h-full bg-[#faf6f3] overflow-hidden relative w-full min-w-0">
         
         {/* Admin Header */}
-        <header className="h-[60px] bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 shadow-sm z-10">
-          <h2 className="text-lg font-bold text-[#0d2a54]">{getPageTitle()}</h2>
+        <header className="h-[60px] bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shrink-0 shadow-sm z-10 w-full">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setMobileMenuOpen(true)}
+              className="md:hidden text-slate-700 hover:bg-slate-100 p-2 rounded-xl transition-colors flex items-center justify-center"
+              aria-label="Open Mobile Menu"
+            >
+              <span className="material-symbols-outlined text-[24px]">menu</span>
+            </button>
+            <h2 className="text-base md:text-lg font-bold text-[#0d2a54] truncate">{getPageTitle()}</h2>
+          </div>
           
-          <div className="flex items-center gap-6 text-sm text-slate-600 font-medium">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2 md:gap-6 text-xs md:text-sm text-slate-600 font-medium">
+            <div className="hidden sm:flex items-center gap-1">
               <span className="text-slate-400">Currency :</span>
               <span>IDR (Rp)</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-2">
               <span className="text-slate-400">Country :</span>
               <span>🇮🇩</span>
             </div>
-            <div className="flex items-center gap-1 cursor-pointer hover:text-[#4a2d21]">
+            <div className="hidden sm:flex items-center gap-1 cursor-pointer hover:text-[#4a2d21]">
               <span>EN</span>
               <span className="material-symbols-outlined text-[18px]">expand_more</span>
             </div>
             
-            <div className="w-px h-6 bg-slate-200 mx-1"></div>
+            <div className="hidden sm:block w-px h-6 bg-slate-200 mx-1"></div>
             
-            <button className="relative text-slate-400 hover:text-[#4a2d21]">
-              <span className="material-symbols-outlined text-[24px]">assignment</span>
-            </button>
-            <div 
+            <button 
               onClick={() => setShowLogoutModal(true)}
-              className="w-8 h-8 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center shadow-sm cursor-pointer hover:bg-red-500/20 transition-all active:scale-95"
+              className="w-9 h-9 rounded-xl bg-red-500/10 text-red-600 flex items-center justify-center shadow-xs cursor-pointer hover:bg-red-500/20 transition-all active:scale-95 shrink-0"
               title="Logout Admin"
             >
-              <span className="material-symbols-outlined text-[18px] font-bold">logout</span>
-            </div>
+              <span className="material-symbols-outlined text-[20px] font-bold">logout</span>
+            </button>
           </div>
         </header>
 
         {/* Content Outlet */}
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar touch-pan-y w-full">
           <Outlet />
         </div>
 

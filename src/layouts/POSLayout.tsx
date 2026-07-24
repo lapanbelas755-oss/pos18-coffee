@@ -32,6 +32,10 @@ export default function POSLayout({ posOrders = [] }: { posOrders?: Order[] }) {
     // Jika tidak ada user login dan bukan di halaman keluar, arahkan ke halaman keluar
     if (!currentUser && location.pathname !== '/pos/keluar') {
       navigate('/pos/keluar', { replace: true });
+    } else if (currentUser && !currentUser.permissions?.pos && location.pathname !== '/pos/keluar') {
+      // Jika user login tapi permission.pos === false (misal Barista / Chef)
+      alert(`Akses Ditolak: Akun ${currentUser.name} (${currentUser.role}) tidak diizinkan mengakses POS Kasir.`);
+      navigate('/pos/keluar', { replace: true });
     }
   }, [currentUser, location.pathname, navigate]);
 

@@ -123,41 +123,55 @@ export default function FinanceAdmin({ transactions, setTransactions, onNotify }
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[
-          { label: "Total Pendapatan", val: totalPendapatan, color: "text-green-600 bg-green-50" },
-          { label: "Total Pengeluaran", val: totalPengeluaran, color: "text-red-600 bg-red-50" },
-          { label: "Laba Bersih", val: laba, color: `${laba >= 0 ? "text-[#4a2d21] bg-[#f4ece3]" : "text-slate-600 bg-slate-100"}` },
-        ].map((c, i) => (
-          <div key={i} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 text-center">
-            <p className="text-[11px] uppercase tracking-widest text-slate-500 font-bold mb-2">{c.label}</p>
-            <p className={`text-2xl font-black ${c.color} px-4 py-2 rounded-2xl inline-block shadow-inner`}>
-              Rp {c.val.toLocaleString("id-ID")}
-            </p>
+        <div className="bg-[#1ea142] text-white p-6 rounded-2xl shadow-md flex justify-between items-center relative overflow-hidden">
+          <div className="absolute -right-4 -bottom-4 opacity-10">
+            <span className="material-symbols-outlined text-[100px]">trending_up</span>
           </div>
-        ))}
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-wider mb-1 opacity-90">Total Pemasukan</div>
+            <div className="text-3xl font-black">Rp {totalPendapatan.toLocaleString("id-ID")}</div>
+          </div>
+        </div>
+
+        <div className="bg-[#cd2021] text-white p-6 rounded-2xl shadow-md flex justify-between items-center relative overflow-hidden">
+          <div className="absolute -right-2 -bottom-2 opacity-10">
+            <span className="material-symbols-outlined text-[90px]">receipt_long</span>
+          </div>
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-wider mb-1 opacity-90">Total Pengeluaran</div>
+            <div className="text-3xl font-black">Rp {totalPengeluaran.toLocaleString("id-ID")}</div>
+          </div>
+        </div>
+
+        <div className="bg-[#382016] text-white p-6 rounded-2xl shadow-md flex justify-between items-center relative overflow-hidden">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-wider mb-1 opacity-70">Laba Bersih</div>
+            <div className="text-3xl font-black">Rp {laba.toLocaleString("id-ID")}</div>
+          </div>
+        </div>
       </div>
 
       {/* Actions */}
       <div className="flex flex-col gap-4 bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
         
         {/* Top Row: Type Filters & Global Actions */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex gap-2 flex-wrap">
             {(["semua", "inflow", "outflow"] as const).map(f => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-5 py-2.5 rounded-full text-sm font-bold border transition-colors ${filter === f ? "bg-[#4a2d21] text-white border-[#4a2d21]" : "bg-[#fcfaf8] border-slate-200 text-slate-600 hover:bg-[#f4ece3] hover:border-[#4a2d21]/20"}`}>
+              <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2.5 rounded-full text-xs sm:text-sm font-bold border transition-colors ${filter === f ? "bg-[#4a2d21] text-white border-[#4a2d21]" : "bg-[#fcfaf8] border-slate-200 text-slate-600 hover:bg-[#f4ece3] hover:border-[#4a2d21]/20"}`}>
                 {f === "semua" ? "Semua" : f === "inflow" ? "Pemasukan" : "Pengeluaran"}
               </button>
             ))}
           </div>
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex gap-2 w-full sm:w-auto">
             <button 
               onClick={() => setShowHppModal(true)}
-              className="bg-[#f4ece3] hover:bg-[#e8dccb] text-[#4a2d21] px-5 py-3 rounded-2xl font-black text-sm shadow-sm transition-colors flex items-center gap-2"
+              className="flex-1 sm:flex-none bg-[#f4ece3] hover:bg-[#e8dccb] text-[#4a2d21] px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm shadow-xs transition-colors flex items-center justify-center gap-1.5"
             >
               <span className="material-symbols-outlined text-[18px]">request_quote</span>
               Laporan HPP
             </button>
-            <button onClick={openAdd} className="bg-[#4a2d21] text-white hover:bg-[#382016] px-5 py-3 rounded-2xl font-bold text-sm shadow-md transition-colors flex items-center gap-2">
+            <button onClick={openAdd} className="flex-1 sm:flex-none bg-[#4a2d21] text-white hover:bg-[#382016] px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm shadow-md transition-colors flex items-center justify-center gap-1.5">
               <span className="material-symbols-outlined text-[18px]">add</span>
               Tambah Transaksi
             </button>
@@ -165,39 +179,39 @@ export default function FinanceAdmin({ transactions, setTransactions, onNotify }
         </div>
 
         {/* Bottom Row: Date & Category Filters */}
-        <div className="flex items-center gap-4 flex-wrap pt-4 border-t border-slate-100">
-          <div className="flex items-center gap-3 bg-[#fcfaf8] p-2 rounded-2xl border border-slate-200 flex-1 min-w-[250px] max-w-sm">
-            <div className="flex flex-col w-full">
-              <label className="text-[10px] uppercase font-bold text-slate-400 px-2">Dari Tanggal</label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent border-none text-sm font-bold text-slate-800 focus:outline-none px-2 w-full" />
+        <div className="flex items-center gap-3 flex-wrap pt-3 border-t border-slate-100">
+          <div className="flex items-center gap-2 bg-[#fcfaf8] p-2 rounded-2xl border border-slate-200 w-full sm:w-auto flex-1 min-w-[240px]">
+            <div className="flex flex-col flex-1">
+              <label className="text-[9px] uppercase font-bold text-slate-400 px-1">Dari Tanggal</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none px-1 w-full" />
             </div>
             <span className="text-slate-300">-</span>
-            <div className="flex flex-col w-full">
-              <label className="text-[10px] uppercase font-bold text-slate-400 px-2">Sampai Tanggal</label>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent border-none text-sm font-bold text-slate-800 focus:outline-none px-2 w-full" />
+            <div className="flex flex-col flex-1">
+              <label className="text-[9px] uppercase font-bold text-slate-400 px-1">Sampai Tanggal</label>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none px-1 w-full" />
             </div>
           </div>
           
-          <div className="relative min-w-[200px]">
-            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="w-full appearance-none bg-[#fcfaf8] border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]">
+          <div className="relative w-full sm:w-auto flex-1 min-w-[150px]">
+            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="w-full appearance-none bg-[#fcfaf8] border border-slate-200 rounded-2xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]">
               <option value="Semua Kategori">Semua Kategori</option>
               {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <span className="material-symbols-outlined absolute right-3 top-3 text-slate-400 pointer-events-none">expand_more</span>
+            <span className="material-symbols-outlined absolute right-3 top-2.5 text-slate-400 pointer-events-none text-base">expand_more</span>
           </div>
 
-          <div className="relative flex-1 min-w-[200px]">
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari judul transaksi..." className="w-full bg-[#fcfaf8] border border-slate-200 rounded-2xl py-3 pl-11 pr-4 text-sm font-bold text-slate-800 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]" />
-            <span className="material-symbols-outlined absolute left-4 top-3 text-slate-400 text-[20px]">search</span>
+          <div className="relative w-full sm:w-auto flex-1 min-w-[180px]">
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari judul transaksi..." className="w-full bg-[#fcfaf8] border border-slate-200 rounded-2xl py-2.5 pl-10 pr-4 text-xs font-bold text-slate-800 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]" />
+            <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-lg">search</span>
           </div>
         </div>
 
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex-1">
-        <div className="overflow-auto custom-scrollbar h-full">
-          <table className="w-full text-left text-sm text-slate-700 min-w-[900px]">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex-1 min-h-0 flex flex-col">
+        <div className="overflow-auto custom-scrollbar flex-1">
+          <table className="w-full text-left text-sm text-slate-700 min-w-[850px]">
             <thead className="bg-[#fafafa] text-slate-500 font-bold sticky top-0 border-b border-slate-200">
               <tr>
                 <th className="p-5 text-[11px] uppercase tracking-widest whitespace-nowrap">Tanggal</th>
@@ -274,12 +288,14 @@ export default function FinanceAdmin({ transactions, setTransactions, onNotify }
                 <label className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-2 block">Kategori</label>
                 <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} className="w-full bg-[#f4ece3] border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a2d21] appearance-none">
                   <option value="" disabled>Pilih Kategori</option>
-                  <option value="Bar">Bar</option>
-                  <option value="Dapur">Dapur (Kitchen)</option>
-                  <option value="Lainnya">Lainnya</option>
                   <option value="Bahan Baku">Bahan Baku</option>
                   <option value="Operasional">Operasional</option>
+                  <option value="Utility/Gas/Air">Utility / Gas / Air</option>
+                  <option value="Tisu & ATK">Tisu & ATK</option>
+                  <option value="Bar">Bar</option>
+                  <option value="Dapur">Dapur (Kitchen)</option>
                   <option value="Payroll">Payroll</option>
+                  <option value="Lainnya">Lainnya</option>
                 </select>
               </div>
               <div>

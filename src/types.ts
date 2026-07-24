@@ -107,6 +107,61 @@ export interface WasteLog {
   user?: string;
 }
 
+export interface PettyCash {
+  id: string;
+  type: "in" | "out";
+  amount: number;
+  description: string;
+  category?: string;
+  notes?: string;
+  createdBy?: string;
+  timestamp: number;
+}
+
+export interface ShiftTimelineEvent {
+  id: string;
+  timestamp: number;
+  type: "Shift Open" | "Order Created" | "Merge Table" | "Split Bill" | "Split Item" | "Void" | "Refund" | "Pay In" | "Pay Out" | "Stock Opname" | "Shift Close" | string;
+  title: string;
+  detail?: string;
+  user?: string;
+}
+
+export interface ShiftReport {
+  id: string;
+  shiftNumber?: number; // 1 atau 2
+  outlet?: string; // e.g. "LapanbelasCoffee"
+  posDevice?: string; // e.g. "Cashier"
+  staff: string;
+  closedBy?: string;
+  openedAt: number;
+  closedAt: number;
+  startingCash: number;
+  cashSales: number;
+  qrisSales: number;
+  transferSales?: number;
+  refundTotal?: number;
+  cashInTotal: number;
+  cashOutTotal: number;
+  expectedCash: number;
+  actualCash: number;
+  difference: number;
+  totalSales: number;
+  grossSales?: number;
+  discountTotal?: number;
+  serviceChargeTotal?: number;
+  taxTotal?: number;
+  netSales?: number;
+  totalCustomers?: number;
+  totalItemsSold?: number;
+  totalInvoices?: number;
+  expenses?: PettyCash[];
+  tenders?: { name: string; count: number; total: number; percentage: number }[];
+  salesByCategory?: { category: string; quantity: number; totalAmount: number; items: { name: string; quantity: number; totalAmount: number }[] }[];
+  salesByHour?: { hour: string; count: number; totalAmount: number; avgOrder: number }[];
+  timeline?: ShiftTimelineEvent[];
+}
+
 export interface Transaction {
   id: string;
   date: string;
@@ -121,6 +176,12 @@ export interface Order {
   id: string;
   queue: string;
   staff: string;
+  shiftId?: string;
+  shiftLabel?: string; // e.g. "Shift 1"
+  outlet?: string;
+  posDevice?: string;
+  customerId?: string;
+  customerType?: "Customer Terdaftar" | "Walk In";
   table: string | null;
   pager: string | null;
   type: "Dine In" | "Take Out" | "Online";
@@ -129,10 +190,30 @@ export interface Order {
   change?: number; // Kembalian
   status: "Unpaid" | "Partially Paid" | "Selesai" | "Batal" | "Ready" | "Pending";
   total: number;
+  subtotal?: number;
+  discount?: number;
+  tax?: number;
+  serviceCharge?: number;
   time: string;
   items: CartItem[];
   customerName?: string;
   created_at?: string;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  customerType?: "Customer Terdaftar" | "Walk In";
+  totalOrders: number;
+  totalSpending: number;
+  favoritePayment?: string;
+  lastVisit?: string;
+  lastShift?: string;
+  lastKasir?: string;
+  outlet?: string;
+  isNew?: boolean;
 }
 
 export interface TableData {

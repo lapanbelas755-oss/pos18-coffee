@@ -260,14 +260,31 @@ export default function AdminApp() {
           <Route path="menu" element={<ItemMenuAdmin products={products} setProducts={setProducts} stockItems={stockItems} recipes={recipes} onNotify={triggerToast} />} />
           <Route path="orders" element={<OrderAdmin posOrders={posOrders} tables={tables} />} />
           <Route path="inventory" element={<InventoryAdmin stockItems={stockItems} setStockItems={setStockItems} wasteLogs={wasteLogs} setWasteLogs={setWasteLogs} onNotify={triggerToast} />} />
-          <Route path="finance" element={<FinanceAdmin transactions={transactions} setTransactions={setTransactions} onNotify={triggerToast} />} />
-          <Route path="recipes" element={<RecipeAdmin recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} onNotify={triggerToast} />} />
+          <Route path="finance" element={<AdminPermissionGuard requiredPermission="admin"><FinanceAdmin transactions={transactions} setTransactions={setTransactions} onNotify={triggerToast} /></AdminPermissionGuard>} />
+          <Route path="recipes" element={<AdminPermissionGuard requiredPermission="admin"><RecipeAdmin recipes={recipes} setRecipes={setRecipes} stockItems={stockItems} onNotify={triggerToast} /></AdminPermissionGuard>} />
           <Route path="queue-display" element={<QueueDisplayAdmin />} />
-          <Route path="report" element={<ReportAdmin orders={posOrders} recipes={recipes} stockItems={stockItems} />} />
-          <Route path="employees" element={<EmployeeAdmin />} />
+          <Route path="report" element={<AdminPermissionGuard requiredPermission="reports"><ReportAdmin orders={posOrders} recipes={recipes} stockItems={stockItems} /></AdminPermissionGuard>} />
+          <Route path="employees" element={<AdminPermissionGuard requiredPermission="admin"><EmployeeAdmin /></AdminPermissionGuard>} />
           <Route path="customers" element={<CustomerAdmin posOrders={posOrders} transactions={transactions} tables={tables} />} />
         </Route>
       </Routes>
     </>
   );
+}
+
+/** Route Guard untuk modul sensitif dalam Admin Area (Keuangan, Karyawan, Resep, Laporan) */
+function AdminPermissionGuard({ requiredPermission, children }: { requiredPermission: keyof import("../../types").EmployeePermissions; children: React.ReactNode }) {
+  const { currentUser } = useAuthStore();
+  if (currentUser && !currentUser.permissions[requiredPermission]) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-sm max-w-lg mx-auto mt-12">
+        <span className="material-symbols-outlined text-5xl text-red-500 mb-3">lock</span>
+        <h3 className="text-xl font-black text-slate-800 mb-1">Akses Ditolak</h3>
+        <p className="text-slate-500 text-xs font-medium mb-4">
+          Akun Anda ({currentUser.name} - {currentUser.role}) tidak memiliki hak akses untuk modul ini.
+        </p>
+      </div>
+    );
+  }
+  return <>{children}</>;
 }

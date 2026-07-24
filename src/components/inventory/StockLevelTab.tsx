@@ -231,14 +231,14 @@ export default function StockLevelTab({ stockItems, setStockItems, wasteLogs = [
   };
 
   return (
-    <div className="flex flex-col gap-6 w-full">
+    <div className="flex flex-col gap-6 w-full flex-1 min-h-0">
       {/* Department Tabs */}
-      <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
+      <div className="flex gap-1.5 p-1 bg-slate-100 rounded-xl w-full sm:w-fit overflow-x-auto custom-scrollbar">
         {["Semua Departemen", "Barista", "Kitchen"].map(dept => (
           <button
             key={dept}
             onClick={() => { setActiveDepartment(dept); setActiveCategory("Semua"); setPage(1); }}
-            className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeDepartment === dept
+            className={`px-4 sm:px-6 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${activeDepartment === dept
                 ? "bg-white text-[#4a2d21] shadow-sm"
                 : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
               }`}
@@ -249,22 +249,22 @@ export default function StockLevelTab({ stockItems, setStockItems, wasteLogs = [
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-4 flex flex-col md:flex-row gap-4 items-center shadow-sm">
-        <div className="relative flex-1 w-full max-w-sm">
+      <div className="bg-white border border-slate-200 rounded-3xl p-4 flex flex-col md:flex-row gap-3 items-stretch md:items-center shadow-sm">
+        <div className="relative flex-1 w-full md:max-w-sm">
           <input
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             placeholder="Cari stok berdasarkan nama, SKU..."
-            className="w-full bg-[#f4ece3] border-none rounded-2xl py-3 pl-11 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#4a2d21] text-slate-800 placeholder:text-slate-500"
+            className="w-full bg-[#f4ece3] border-none rounded-2xl py-2.5 sm:py-3 pl-10 pr-4 text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#4a2d21] text-slate-800 placeholder:text-slate-500"
           />
-          <span className="material-symbols-outlined absolute left-4 top-3 text-slate-500">search</span>
+          <span className="material-symbols-outlined absolute left-3 top-2.5 sm:top-3 text-slate-500 text-lg">search</span>
         </div>
-        <div className="flex gap-2 flex-wrap flex-1 md:justify-end">
+        <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1 flex-1 md:justify-end items-center">
           {displayedCategories.map(cat => (
             <button
               key={cat}
               onClick={() => { setActiveCategory(cat); setPage(1); }}
-              className={`px-5 py-2.5 rounded-full text-sm font-bold transition-colors border ${activeCategory === cat
+              className={`px-4 py-2 rounded-full text-xs font-bold transition-colors border whitespace-nowrap shrink-0 ${activeCategory === cat
                   ? "bg-[#4a2d21] text-white border-[#4a2d21]"
                   : "bg-white text-slate-600 border-slate-200 hover:bg-[#f4ece3] hover:border-[#4a2d21]/20"
                 }`}
@@ -274,16 +274,16 @@ export default function StockLevelTab({ stockItems, setStockItems, wasteLogs = [
           ))}
           <button
             onClick={() => setIsScanning(true)}
-            className="px-5 py-2.5 rounded-full text-sm font-bold transition-colors border bg-[#f4ece3] text-[#4a2d21] border-transparent hover:bg-[#e8dccb] flex items-center gap-2 shadow-sm ml-2"
+            className="px-3.5 py-2 rounded-full text-xs font-bold transition-colors border bg-[#f4ece3] text-[#4a2d21] border-transparent hover:bg-[#e8dccb] flex items-center gap-1 shadow-xs shrink-0 whitespace-nowrap"
           >
-            <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+            <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
             Scan QR
           </button>
           <button
             onClick={openAdd}
-            className="px-5 py-2.5 rounded-full text-sm font-bold transition-colors border bg-[#4a2d21] text-white border-[#4a2d21] hover:bg-[#382016] flex items-center gap-2 shadow-md"
+            className="px-3.5 py-2 rounded-full text-xs font-bold transition-colors border bg-[#4a2d21] text-white border-[#4a2d21] hover:bg-[#382016] flex items-center gap-1 shadow-sm shrink-0 whitespace-nowrap"
           >
-            <span className="material-symbols-outlined text-[18px]">add</span>
+            <span className="material-symbols-outlined text-[16px]">add</span>
             Tambah Stok
           </button>
         </div>

@@ -58,9 +58,43 @@
   50% { top: 100%; }
 }
 
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior-x: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 body {
   font-family: 'Plus Jakarta Sans', sans-serif;
   background-color: #fff8f5;
   color: #1e1b18;
-  overflow: hidden;
+}
+
+/* Allow text selection only inside editable inputs and textareas */
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Prevent image dragging floating effect */
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
+  pointer-events: none;
+}
+button img, a img {
+  pointer-events: auto;
 }

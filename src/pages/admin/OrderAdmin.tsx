@@ -10,6 +10,7 @@ export default function OrderAdmin({ posOrders, tables }: OrderAdminProps) {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("Semua");
   const [filterType, setFilterType] = useState("Semua");
+  const [filterShift, setFilterShift] = useState("Semua");
   const [filterDate, setFilterDate] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
 
@@ -19,19 +20,18 @@ export default function OrderAdmin({ posOrders, tables }: OrderAdminProps) {
   const filtered = posOrders.filter(o => {
     const matchStatus = filterStatus === "Semua" || o.status === filterStatus;
     const matchType = filterType === "Semua" || o.type === filterType;
-    const matchSearch = search === "" || o.id.includes(search) || (o.items || []).some(it => it.product?.name?.toLowerCase().includes(search.toLowerCase()));
+    const matchShift = filterShift === "Semua" || (o.shiftLabel || "Shift 1") === filterShift;
+    const matchSearch = search === "" || o.id.includes(search) || (o.items || []).some(it => it.product?.name?.toLowerCase().includes(search.toLowerCase())) || (o.customerName && o.customerName.toLowerCase().includes(search.toLowerCase()));
     
     let matchDate = true;
     let matchMonth = true;
 
     if (filterDate || filterMonth) {
-      // Prioritaskan created_at (ISO timestamp dari Supabase), fallback ke o.time
       let txDate: Date | null = null;
       const rawCreatedAt = (o as any).created_at;
       if (rawCreatedAt) {
         txDate = new Date(rawCreatedAt);
       } else {
-        // Parse format "13 Jul 2026, 14.30"
         try {
           const dStr = o.time?.split(',')[0]?.trim();
           const parts = dStr?.split(' ');
@@ -53,7 +53,7 @@ export default function OrderAdmin({ posOrders, tables }: OrderAdminProps) {
       }
     }
     
-    return matchStatus && matchType && matchSearch && matchDate && matchMonth;
+    return matchStatus && matchType && matchShift && matchSearch && matchDate && matchMonth;
   });
 
   const statusLabel: Record<string, string> = { Selesai: "Selesai", Unpaid: "Belum Bayar", Batal: "Dibatalkan", Ready: "Siap Diambil", Pending: "Tertunda" };
@@ -66,62 +66,69 @@ export default function OrderAdmin({ posOrders, tables }: OrderAdminProps) {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-[1200px] mx-auto h-full pb-10">
+    <div className="flex flex-col gap-6 max-w-[1200px] mx-auto min-h-0 flex-1 pb-10">
 
       <div className="flex justify-between items-center flex-wrap gap-4 bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-3 bg-[#f4ece3] px-5 py-2.5 rounded-xl">
           <span className="font-black text-[#4a2d21]">{filtered.length} Order</span>
-          <span className="text-slate-500 text-sm font-bold">dari {posOrders.length} total</span>
+          <span className="text-slate-500 text-xs sm:text-sm font-bold">dari {posOrders.length} total</span>
         </div>
-        <button className="bg-[#4a2d21] text-white hover:bg-[#382016] px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-colors flex items-center gap-2">
+        <button className="bg-[#4a2d21] text-white hover:bg-[#382016] px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-md transition-colors flex items-center gap-2">
           <span className="material-symbols-outlined text-[18px]">download</span>
           Export
         </button>
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center">
-        <div className="relative flex-1 min-w-[200px]">
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari ID order atau item..." className="w-full bg-[#f4ece3] border-none rounded-2xl py-3 pl-11 pr-4 text-sm font-bold text-slate-800 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]" />
-          <span className="material-symbols-outlined absolute left-4 top-3 text-slate-500">search</span>
+      <div className="bg-white p-4 sm:p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-wrap gap-3 items-center">
+        <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari ID order atau item..." className="w-full bg-[#f4ece3] border-none rounded-2xl py-2.5 sm:py-3 pl-11 pr-4 text-xs sm:text-sm font-bold text-slate-800 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]" />
+          <span className="material-symbols-outlined absolute left-4 top-2.5 sm:top-3 text-slate-500 text-lg">search</span>
         </div>
-        <div className="flex gap-2">
-          <div className="relative">
-            <input type="date" value={filterDate} onChange={e => { setFilterDate(e.target.value); setFilterMonth(""); }} className="bg-[#f4ece3] border-none rounded-2xl py-3 px-4 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]" title="Filter Tanggal" />
+        <div className="flex gap-2 w-full sm:w-auto">
+          <input type="date" value={filterDate} onChange={e => { setFilterDate(e.target.value); setFilterMonth(""); }} className="flex-1 sm:flex-none bg-[#f4ece3] border-none rounded-2xl py-2.5 sm:py-3 px-3 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]" title="Filter Tanggal" />
+          <input type="month" value={filterMonth} onChange={e => { setFilterMonth(e.target.value); setFilterDate(""); }} className="flex-1 sm:flex-none bg-[#f4ece3] border-none rounded-2xl py-2.5 sm:py-3 px-3 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]" title="Filter Bulan" />
+        </div>
+        <div className="flex gap-2 w-full sm:w-auto flex-wrap">
+          <div className="relative flex-1 sm:flex-none">
+            <select value={filterShift} onChange={e => setFilterShift(e.target.value)} className="w-full appearance-none border-none bg-[#f4ece3] rounded-2xl py-2.5 sm:py-3 pl-3 pr-8 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]">
+              <option value="Semua">Semua Shift</option>
+              <option value="Shift 1">Shift 1</option>
+              <option value="Shift 2">Shift 2</option>
+            </select>
+            <span className="material-symbols-outlined absolute right-2 top-2.5 sm:top-3 text-slate-500 pointer-events-none text-base">expand_more</span>
           </div>
-          <div className="relative">
-            <input type="month" value={filterMonth} onChange={e => { setFilterMonth(e.target.value); setFilterDate(""); }} className="bg-[#f4ece3] border-none rounded-2xl py-3 px-4 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]" title="Filter Bulan" />
+          <div className="relative flex-1 sm:flex-none">
+            <select value={filterType} onChange={e => setFilterType(e.target.value)} className="w-full appearance-none border-none bg-[#f4ece3] rounded-2xl py-2.5 sm:py-3 pl-3 pr-8 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]">
+              {orderTypes.map(t => <option key={t} value={t}>{t === "Semua" ? "Semua Tipe" : t}</option>)}
+            </select>
+            <span className="material-symbols-outlined absolute right-2 top-2.5 sm:top-3 text-slate-500 pointer-events-none text-base">expand_more</span>
           </div>
-        </div>
-        <div className="relative">
-          <select value={filterType} onChange={e => setFilterType(e.target.value)} className="appearance-none border-none bg-[#f4ece3] rounded-2xl py-3 pl-4 pr-10 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]">
-            {orderTypes.map(t => <option key={t} value={t}>{t === "Semua" ? "Semua Tipe" : t}</option>)}
-          </select>
-          <span className="material-symbols-outlined absolute right-3 top-3 text-slate-500 pointer-events-none">expand_more</span>
-        </div>
-        <div className="relative">
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="appearance-none border-none bg-[#f4ece3] rounded-2xl py-3 pl-4 pr-10 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]">
-            {statusTypes.map(s => <option key={s} value={s}>{s === "Semua" ? "Semua Status" : statusLabel[s]}</option>)}
-          </select>
-          <span className="material-symbols-outlined absolute right-3 top-3 text-slate-500 pointer-events-none">expand_more</span>
+          <div className="relative flex-1 sm:flex-none">
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full appearance-none border-none bg-[#f4ece3] rounded-2xl py-2.5 sm:py-3 pl-3 pr-8 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a2d21]">
+              {statusTypes.map(s => <option key={s} value={s}>{s === "Semua" ? "Semua Status" : statusLabel[s]}</option>)}
+            </select>
+            <span className="material-symbols-outlined absolute right-2 top-2.5 sm:top-3 text-slate-500 pointer-events-none text-base">expand_more</span>
+          </div>
         </div>
         {(filterDate || filterMonth) && (
-          <button onClick={() => { setFilterDate(""); setFilterMonth(""); }} className="text-sm font-bold text-red-500 hover:text-red-700 underline">
+          <button onClick={() => { setFilterDate(""); setFilterMonth(""); }} className="text-xs font-bold text-red-500 hover:text-red-700 underline">
             Reset
           </button>
         )}
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex-1">
-        <div className="overflow-auto custom-scrollbar h-full">
-          <table className="w-full text-left text-sm text-slate-700 min-w-[800px]">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex-1 min-h-0 flex flex-col">
+        <div className="overflow-auto custom-scrollbar flex-1">
+          <table className="w-full text-left text-sm text-slate-700 min-w-[750px]">
             <thead className="bg-[#fafafa] text-slate-500 font-bold sticky top-0 z-10 border-b border-slate-200">
               <tr>
                 <th className="p-5 text-[11px] uppercase tracking-widest">No. Tiket</th>
+                <th className="p-5 text-[11px] uppercase tracking-widest">Shift / Staf</th>
                 <th className="p-5 text-[11px] uppercase tracking-widest">POS Device</th>
                 <th className="p-5 text-[11px] uppercase tracking-widest text-center">Tipe Pesanan</th>
-                <th className="p-5 text-[11px] uppercase tracking-widest">Meja / Info</th>
+                <th className="p-5 text-[11px] uppercase tracking-widest">Meja / Customer</th>
                 <th className="p-5 text-[11px] uppercase tracking-widest">Item Pesanan</th>
                 <th className="p-5 text-[11px] uppercase tracking-widest text-center">Status</th>
               </tr>
@@ -130,11 +137,18 @@ export default function OrderAdmin({ posOrders, tables }: OrderAdminProps) {
               {filtered.map((order, idx) => (
                 <tr key={order.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors align-top ${idx % 2 !== 0 ? 'bg-[#fafcf5]' : 'bg-white'}`}>
                   <td className="p-5 font-black text-[#4a2d21] text-base">{order.id}</td>
-                  <td className="p-5 text-slate-500 font-medium">Kasir Utama</td>
+                  <td className="p-5">
+                    <span className="px-2.5 py-1 bg-red-50 text-red-700 font-bold text-xs rounded-md block w-fit mb-1">{order.shiftLabel || "Shift 1"}</span>
+                    <span className="text-xs text-slate-500 font-medium">Staf: {order.staff || "Kasir"}</span>
+                  </td>
+                  <td className="p-5 text-slate-500 font-medium">{order.posDevice || "POS Kasir 1"}</td>
                   <td className="p-5 text-center">
                     <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#f4ece3] text-[#4a2d21] whitespace-nowrap">{order.type}</span>
                   </td>
-                  <td className="p-5 font-bold text-slate-600">{tables.find(t => t.id === order.table)?.name || order.table || "-"}</td>
+                  <td className="p-5 font-bold text-slate-600">
+                    <div>{tables.find(t => t.id === order.table)?.name || order.table || "-"}</div>
+                    {order.customerName && <span className="text-xs font-normal text-slate-500">Cust: {order.customerName}</span>}
+                  </td>
                   <td className="p-5">
                     <ul className="space-y-1">
                       {order.items.map(item => (
@@ -153,7 +167,7 @@ export default function OrderAdmin({ posOrders, tables }: OrderAdminProps) {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="p-16 text-center text-slate-400 font-medium">Tidak ada order ditemukan.</td></tr>
+                <tr><td colSpan={7} className="p-16 text-center text-slate-400 font-medium">Tidak ada order ditemukan.</td></tr>
               )}
             </tbody>
           </table>

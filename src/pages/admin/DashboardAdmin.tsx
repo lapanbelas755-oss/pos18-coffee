@@ -348,15 +348,15 @@ export default function DashboardAdmin({ transactions, products, recipes = [], p
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Best Selling Items */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-[350px]">
-          <div className="flex justify-between items-center mb-6">
+        <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-[350px]">
+          <div className="flex justify-between items-center mb-4">
             <span className="font-extrabold text-slate-800 text-base">Best Selling Items</span>
             <span className="text-xs font-bold text-red-700 cursor-pointer hover:underline">View Details</span>
           </div>
-          <div className="flex-1 flex items-center justify-center -ml-10">
-            <ResponsiveContainer width="100%" height={250}>
+          <div className="flex-1 flex flex-col sm:flex-row items-center justify-center">
+            <ResponsiveContainer width="100%" height={230}>
               <PieChart>
-                <Pie data={bestSellingData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" stroke="none">
+                <Pie data={bestSellingData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} dataKey="value" stroke="none">
                   {bestSellingData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                 </Pie>
                 <Tooltip formatter={(val) => `${val} terjual`} />
@@ -367,37 +367,39 @@ export default function DashboardAdmin({ transactions, products, recipes = [], p
         </div>
 
         {/* Orders */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-[350px]">
-          <div className="flex justify-between items-center mb-6">
+        <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-[350px]">
+          <div className="flex justify-between items-center mb-4">
             <span className="font-extrabold text-slate-800 text-base">Orders</span>
             <span className="text-xs font-bold text-red-700 cursor-pointer hover:underline">View Details</span>
           </div>
-          <div className="flex-1 flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={ordersData} cx="50%" cy="50%" outerRadius={100} dataKey="value" stroke="none" label={({ cx, cy, midAngle, innerRadius, outerRadius, value, index }) => {
-                  const RADIAN = Math.PI / 180;
-                  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                  return (
-                    <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize="12" fontWeight="bold">
-                      {`${value}`}
-                    </text>
-                  );
-                }} labelLine={false}>
-                  {ordersData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                </Pie>
-                <Tooltip formatter={(val) => `${val} order`} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="flex flex-col ml-4">
-              <span className="text-xs font-bold text-slate-500 mb-1">Total Order :</span>
-              <span className="text-3xl font-black text-slate-800 mb-4">{totalOrderCount}</span>
-              <ul className="flex flex-col gap-2 text-xs font-bold text-slate-600">
+          <div className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="w-full sm:w-2/3 h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={ordersData} cx="50%" cy="50%" outerRadius={85} dataKey="value" stroke="none" label={({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
+                    const RADIAN = Math.PI / 180;
+                    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                    return (
+                      <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize="12" fontWeight="bold">
+                        {`${value}`}
+                      </text>
+                    );
+                  }} labelLine={false}>
+                    {ordersData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(val) => `${val} order`} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+              <span className="text-xs font-bold text-slate-500 mb-0.5">Total Order :</span>
+              <span className="text-2xl sm:text-3xl font-black text-slate-800 mb-2">{totalOrderCount}</span>
+              <ul className="flex flex-row sm:flex-col gap-3 text-xs font-bold text-slate-600 flex-wrap justify-center">
                 {ordersData.map((d, i) => (
-                  <li key={i} className="flex items-center gap-2">
-                    <span className="w-4 h-3 rounded-sm" style={{ backgroundColor: d.color }}></span>
+                  <li key={i} className="flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded-sm shrink-0" style={{ backgroundColor: d.color }}></span>
                     {d.name}
                   </li>
                 ))}
@@ -407,15 +409,15 @@ export default function DashboardAdmin({ transactions, products, recipes = [], p
         </div>
 
         {/* Best Category */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-[350px]">
-          <div className="flex justify-between items-center mb-6">
+        <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-[350px]">
+          <div className="flex justify-between items-center mb-4">
             <span className="font-extrabold text-slate-800 text-base">Best Category</span>
             <span className="text-xs font-bold text-red-700 cursor-pointer hover:underline">View Details</span>
           </div>
-          <div className="flex-1 flex items-center justify-center -ml-10">
-            <ResponsiveContainer width="100%" height={250}>
+          <div className="flex-1 flex flex-col sm:flex-row items-center justify-center">
+            <ResponsiveContainer width="100%" height={230}>
               <PieChart>
-                <Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" stroke="none">
+                <Pie data={categoryData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} dataKey="value" stroke="none">
                   {categoryData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                 </Pie>
                 <Tooltip formatter={(val) => `${val} item`} />
@@ -426,24 +428,24 @@ export default function DashboardAdmin({ transactions, products, recipes = [], p
         </div>
 
         {/* Discount Report */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-[350px]">
-          <div className="flex justify-between items-center mb-6">
+        <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-[250px]">
+          <div className="flex justify-between items-center mb-4">
             <span className="font-extrabold text-slate-800 text-base">Discount Report</span>
           </div>
           <div className="flex-1 flex items-center justify-center">
-            <span className="text-xl font-medium text-slate-500">No Data!</span>
+            <span className="text-lg font-medium text-slate-400">No Data!</span>
           </div>
         </div>
 
         {/* Tenders Report */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-[350px]">
-          <div className="flex justify-between items-center mb-6">
+        <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-[350px]">
+          <div className="flex justify-between items-center mb-4">
             <span className="font-extrabold text-slate-800 text-base">Tenders Report</span>
           </div>
-          <div className="flex-1 flex items-center justify-center -ml-10">
-            <ResponsiveContainer width="100%" height={250}>
+          <div className="flex-1 flex flex-col sm:flex-row items-center justify-center">
+            <ResponsiveContainer width="100%" height={230}>
               <PieChart>
-                <Pie data={tendersData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" stroke="none">
+                <Pie data={tendersData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} dataKey="value" stroke="none">
                   {tendersData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                 </Pie>
                 <Tooltip formatter={(val: number) => `Rp ${val.toLocaleString("id-ID")}`} />

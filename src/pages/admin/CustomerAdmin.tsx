@@ -98,14 +98,73 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
   // Group by: shiftLabel + staff + dateStr
   // Ini SAMA PERSIS dengan data yang ditampilkan di menu Order
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // AGGREGATION ENGINE — Single Source of Truth
+  // Mengombinasikan shift_history tersimpan (untuk shift yang sudah ditutup)
+  // dengan agregasi real-time dari posOrders (untuk shift aktif atau fallback)
+  // ---------------------------------------------------------------------------
   const aggregatedShifts = useMemo(() => {
-    // Only count completed / paid orders (status: Selesai, Paid, Completed)
-    // Exclude Batal, Void, Dibatalkan, Unpaid
+    // 1. Ambil data shift history yang disimpan oleh POS Kasir saat Tutup Shift
+    let savedShiftHistory: ShiftReport[] = [];
+    try {
+      const rawHistory = localStorage.getItem("shift_history");
+      if (rawHistory) {
+        savedShiftHistory = JSON.parse(rawHistory);
+      }
+    } catch (err) {
+      console.warn("Failed to parse shift_history from localStorage", err);
+    }
+
+    // List ID shift yang sudah ada di history agar tidak terhitung ganda
+    const processedShiftKeys = new Set<string>();
+
+    const rows: ShiftAggregateRow[] = [];
+
+    // Prioritas 1: Masukkan data dari ShiftReport (Shift yang sudah resmi ditutup di POS Kasir)
+    savedShiftHistory.forEach((report) => {
+      const dateObj = new Date(report.openedAt);
+      const dateStr = dateObj.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+      const shiftLabel = report.shiftNumber ? `Shift ${report.shiftNumber}` : "Shift 1";
+      const staff = report.staff || "Kasir";
+      const key = `${shiftLabel}__${staff}__${dateStr}`;
+      processedShiftKeys.add(key);
+
+      // Extract shift orders matching shift open & close timeframe
+      const shiftOrders = posOrders.filter(o => {
+        const rawTime = o.created_at || (o as any).createdAt;
+        const t = typeof rawTime === 'number' ? rawTime : rawTime ? new Date(rawTime).getTime() : 0;
+        const matchTime = t >= report.openedAt && (!report.closedAt || t <= report.closedAt);
+        const matchStatus = o.status === "Selesai" || o.status === "Paid" || o.status === "Completed";
+        return matchTime && matchStatus;
+      });
+
+      rows.push({
+        id: report.id || key,
+        shiftLabel,
+        staff,
+        dateStr,
+        openedAt: report.openedAt,
+        isOpen: false,
+        totalOrders: report.totalInvoices || shiftOrders.length,
+        totalSales: report.totalSales,
+        cashSales: report.cashSales,
+        qrisSales: report.qrisSales,
+        transferSales: report.transferSales || 0,
+        cashOutTotal: report.cashOutTotal,
+        expenses: report.expenses || [],
+        orders: shiftOrders,
+      });
+    });
+
+    // Prioritas 2: Agregasi real-time dari posOrders untuk shift aktif atau shift yang belum tersimpan di history
     const completedOrders = posOrders.filter(o =>
       o.status === "Selesai" || o.status === "Paid" || o.status === "Completed"
     );
 
-    // Group by (shiftLabel + staff + dateStr)
     const groupMap: Record<string, {
       shiftLabel: string;
       staff: string;
@@ -120,15 +179,18 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
       const staff = o.staff || "Kasir";
       const key = `${shiftLabel}__${staff}__${dateStr}`;
 
-      if (!groupMap[key]) {
-        groupMap[key] = { shiftLabel, staff, dateStr, orders: [], timestamps: [] };
+      // Hanya proses jika belum ditangani oleh shift_history
+      if (!processedShiftKeys.has(key)) {
+        if (!groupMap[key]) {
+          groupMap[key] = { shiftLabel, staff, dateStr, orders: [], timestamps: [] };
+        }
+        groupMap[key].orders.push(o);
+        const ts = getTimestamp(o);
+        if (ts > 0) groupMap[key].timestamps.push(ts);
       }
-      groupMap[key].orders.push(o);
-      const ts = getTimestamp(o);
-      if (ts > 0) groupMap[key].timestamps.push(ts);
     });
 
-    // Determine active shift key for badge
+    // Tentukan active shift key
     let activeKey: string | null = null;
     if (activeShiftRaw && activeShiftRaw.isOpen) {
       const activeStaff = activeShiftRaw.staff || "";
@@ -139,8 +201,7 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
       activeKey = `${activeShiftLabel}__${activeStaff}__${activeDateStr}`;
     }
 
-    // Build rows
-    const rows: ShiftAggregateRow[] = Object.entries(groupMap).map(([key, g]) => {
+    Object.entries(groupMap).forEach(([key, g]) => {
       let cashSales = 0;
       let qrisSales = 0;
       let transferSales = 0;
@@ -152,26 +213,51 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
         else transferSales += o.total;
       });
 
-      const openedAt = g.timestamps.length > 0 ? Math.min(...g.timestamps) : 0;
+      const openedAt = g.timestamps.length > 0 ? Math.min(...g.timestamps) : Date.now();
       const isOpen = key === activeKey;
 
-      // Match expenses from transactions for this date + (if active, use activePettyRaw)
       let expenses: PettyCash[] = [];
       if (isOpen && activePettyRaw.length > 0) {
         expenses = activePettyRaw.filter(p => p.type === "out");
       } else {
-        // Match from finance transactions for this date
         expenses = transactions
           .filter(t => {
             if (t.type !== "outflow") return false;
-            // Normalize transaction date to same format
+            // Abaikan transaksi COGS / HPP bahan baku yang tercipta otomatis saat checkout order
+            if (t.category === "Bahan Baku" || (t.title && t.title.startsWith("COGS:"))) return false;
             let txDate = t.date || "";
-            if (txDate.includes("T") || txDate.includes("-")) {
-              txDate = new Date(txDate).toLocaleDateString("id-ID", {
+            if (!txDate) return false;
+            // Split if slash or format: e.g. "23/7/2026" vs "23 Jul 2026"
+            let formattedTxDate = txDate;
+            if (txDate.includes("T") || (txDate.includes("-") && !txDate.includes(" "))) {
+              formattedTxDate = new Date(txDate).toLocaleDateString("id-ID", {
                 day: "numeric", month: "short", year: "numeric"
               });
+            } else if (txDate.includes("/")) {
+              const parts = txDate.split("/");
+              if (parts.length === 3) {
+                const d = parseInt(parts[0], 10);
+                const m = parseInt(parts[1], 10) - 1;
+                const y = parseInt(parts[2], 10);
+                const dt = new Date(y, m, d);
+                if (!isNaN(dt.getTime())) {
+                  formattedTxDate = dt.toLocaleDateString("id-ID", {
+                    day: "numeric", month: "short", year: "numeric"
+                  });
+                }
+              }
             }
-            return txDate === g.dateStr;
+            const matchDate = formattedTxDate === g.dateStr || txDate === g.dateStr;
+            if (!matchDate) return false;
+
+            // PENTING: Filter pengeluaran berdasarkan nama Kasir yang menginput
+            // (Apakah title mengandung [Kasir: NamaKasir] atau diciptakan oleh g.staff)
+            const titleLower = (t.title || "").toLowerCase();
+            const staffLower = g.staff.toLowerCase().trim();
+            if (titleLower.includes("[kasir:")) {
+              return titleLower.includes(`[kasir: ${staffLower}]`) || titleLower.includes(`[kasir:${staffLower}]`);
+            }
+            return true;
           })
           .map(t => ({
             id: t.id,
@@ -187,7 +273,7 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
 
       const cashOutTotal = expenses.reduce((sum, e) => sum + e.amount, 0);
 
-      return {
+      rows.push({
         id: key,
         shiftLabel: g.shiftLabel,
         staff: g.staff,
@@ -202,10 +288,10 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
         cashOutTotal,
         expenses,
         orders: g.orders,
-      };
+      });
     });
 
-    // Sort: active shift first, then most recent date
+    // Sort: active shift first, then most recent openedAt
     return rows.sort((a, b) => {
       if (a.isOpen && !b.isOpen) return -1;
       if (!a.isOpen && b.isOpen) return 1;
@@ -253,14 +339,14 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto h-full pb-10 font-sans">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto min-h-0 flex-1 pb-10 font-sans">
 
       {/* Page Header */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="bg-white p-4 md:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-black text-[#4d3227]">Riwayat Shift & Audit Operasional</h2>
-            <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-extrabold rounded-full border border-emerald-300 flex items-center gap-1.5">
+            <h2 className="text-xl md:text-2xl font-black text-[#4d3227]">Riwayat Shift & Audit Operasional</h2>
+            <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-extrabold rounded-full border border-emerald-300 flex items-center gap-1.5 shrink-0">
               <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
               LIVE
             </span>
@@ -269,15 +355,15 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
             Data diambil langsung dari tabel Order — sama persis dengan menu Order.
           </p>
         </div>
-        <div className="text-right">
+        <div className="text-left md:text-right w-full md:w-auto flex md:block justify-between items-center border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
           <p className="text-xs text-slate-400 font-medium">Total Shift Tercatat</p>
-          <p className="text-3xl font-black text-[#4d3227]">{aggregatedShifts.length}</p>
+          <p className="text-2xl md:text-3xl font-black text-[#4d3227]">{aggregatedShifts.length}</p>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[180px]">
           <input
             type="text"
             value={search}
@@ -288,32 +374,34 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
           <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-lg">search</span>
         </div>
 
-        <select value={filterShiftNum} onChange={e => setFilterShiftNum(e.target.value)}
-          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 outline-none">
-          <option value="Semua Shift">Semua Shift</option>
-          <option value="Shift 1">Shift 1</option>
-          <option value="Shift 2">Shift 2</option>
-        </select>
+        <div className="flex gap-2">
+          <select value={filterShiftNum} onChange={e => setFilterShiftNum(e.target.value)}
+            className="flex-1 sm:flex-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 outline-none">
+            <option value="Semua Shift">Semua Shift</option>
+            <option value="Shift 1">Shift 1</option>
+            <option value="Shift 2">Shift 2</option>
+          </select>
 
-        <select value={filterKasir} onChange={e => setFilterKasir(e.target.value)}
-          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 outline-none">
-          <option value="Semua Kasir">Semua Kasir</option>
-          {uniqueKasir.map(k => <option key={k} value={k}>{k}</option>)}
-        </select>
+          <select value={filterKasir} onChange={e => setFilterKasir(e.target.value)}
+            className="flex-1 sm:flex-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 outline-none">
+            <option value="Semua Kasir">Semua Kasir</option>
+            {uniqueKasir.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
+        </div>
 
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2 text-xs w-full sm:w-auto">
           <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none" />
+            className="flex-1 sm:flex-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none" />
           <span className="text-slate-400">s/d</span>
           <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none" />
+            className="flex-1 sm:flex-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none" />
         </div>
       </div>
 
       {/* Shift Table */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex-1 min-h-0 flex flex-col">
+        <div className="overflow-auto custom-scrollbar flex-1">
+          <table className="w-full text-left text-xs text-slate-700 min-w-[750px]">
             <thead className="bg-[#4d3227] text-white font-extrabold">
               <tr>
                 <th className="p-4 text-center">Shift</th>

@@ -28,18 +28,18 @@ export default function InventoryAdmin({ stockItems, setStockItems, wasteLogs, s
   ] as const;
 
   return (
-    <div className="flex flex-col gap-6 max-w-[1200px] mx-auto h-full pb-10">
+    <div className="flex flex-col gap-6 max-w-[1200px] mx-auto min-h-0 flex-1 pb-10">
 
       {/* Main Navigation Header */}
-      <div className="bg-[#faf6f3] border-b border-slate-200 sticky top-0 z-10 pt-4 px-6 md:px-0 flex flex-col md:flex-row md:justify-between items-start md:items-end gap-4">
-        <div className="flex gap-2 overflow-x-auto w-full md:w-auto custom-scrollbar pb-0">
+      <div className="bg-[#faf6f3] border-b border-slate-200 sticky top-0 z-10 pt-2 px-4 md:px-0 flex flex-col md:flex-row md:justify-between items-stretch md:items-end gap-3">
+        <div className="flex gap-2 overflow-x-auto w-full md:w-auto custom-scrollbar pb-1">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-6 py-4 text-sm font-black tracking-widest uppercase transition-colors rounded-t-xl ${
+              className={`px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-black tracking-widest uppercase transition-colors rounded-t-xl shrink-0 whitespace-nowrap ${
                 activeTab === tab.id 
-                  ? "bg-[#4a2d21] text-white" 
+                  ? "bg-[#4a2d21] text-white shadow-sm" 
                   : "bg-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/50"
               }`}
             >
@@ -48,20 +48,20 @@ export default function InventoryAdmin({ stockItems, setStockItems, wasteLogs, s
           ))}
         </div>
         
-        <div className="pb-4 hidden md:flex items-center gap-2">
+        <div className="pb-3 hidden md:flex items-center gap-2">
           <span className="font-bold text-slate-600 text-sm">Total Nilai Inventaris:</span>
           <span className="font-black text-[#4a2d21] text-lg">Rp {totalInventoryValue.toLocaleString('id-ID')}</span>
         </div>
       </div>
 
       {/* Mobile Value Display */}
-      <div className="md:hidden flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+      <div className="md:hidden flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mx-4 sm:mx-0">
         <span className="font-bold text-slate-600 text-xs">Total Nilai Inventaris:</span>
-        <span className="font-black text-[#4a2d21]">Rp {totalInventoryValue.toLocaleString('id-ID')}</span>
+        <span className="font-black text-[#4a2d21] text-sm">Rp {totalInventoryValue.toLocaleString('id-ID')}</span>
       </div>
 
       {/* Tab Content */}
-      <div className="px-6 md:px-0">
+      <div className="px-4 md:px-0 flex-1 min-h-0 flex flex-col">
         {activeTab === "level" && (
           <StockLevelTab stockItems={stockItems} setStockItems={setStockItems} wasteLogs={wasteLogs} onNotify={onNotify} />
         )}

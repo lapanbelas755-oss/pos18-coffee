@@ -199,32 +199,32 @@ export default function ReportAdmin({ orders = [], recipes = [], stockItems = []
 
 
   return (
-    <div className="flex flex-col gap-6 max-w-[1200px] mx-auto h-full pb-10">
+    <div className="flex flex-col gap-6 max-w-[1200px] mx-auto min-h-0 flex-1 pb-10">
       
       {/* Header & Filter */}
-      <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex-wrap gap-4 sticky top-0 z-30">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm gap-4 sticky top-0 z-30">
         <div>
-          <h2 className="text-2xl font-black text-slate-800">Laporan & Analitik</h2>
-          <p className="text-sm font-medium text-slate-500 mt-1">Data penjualan dan pemakaian operasional.</p>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-800">Laporan & Analitik</h2>
+          <p className="text-xs sm:text-sm font-medium text-slate-500 mt-0.5">Data penjualan dan pemakaian operasional.</p>
         </div>
         
         {/* Date Filter */}
-        <div className="flex items-center gap-3 bg-[#fcfaf8] p-2 rounded-2xl border border-slate-200">
-          <div className="flex flex-col">
-            <label className="text-[10px] uppercase font-bold text-slate-400 px-2">Dari Tanggal</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent border-none text-sm font-bold text-slate-800 focus:outline-none px-2" />
+        <div className="flex items-center gap-2 bg-[#fcfaf8] p-2 rounded-2xl border border-slate-200 w-full sm:w-auto">
+          <div className="flex flex-col flex-1">
+            <label className="text-[9px] uppercase font-bold text-slate-400 px-1">Dari Tanggal</label>
+            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none px-1 w-full" />
           </div>
           <span className="text-slate-300">-</span>
-          <div className="flex flex-col">
-            <label className="text-[10px] uppercase font-bold text-slate-400 px-2">Sampai Tanggal</label>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent border-none text-sm font-bold text-slate-800 focus:outline-none px-2" />
+          <div className="flex flex-col flex-1">
+            <label className="text-[9px] uppercase font-bold text-slate-400 px-1">Sampai Tanggal</label>
+            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none px-1 w-full" />
           </div>
         </div>
 
         <button 
           onClick={handleSendDailyReport}
           disabled={isSending}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-2xl shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 text-xs sm:text-sm disabled:opacity-50"
         >
           <span className="material-symbols-outlined text-[18px]">send</span>
           {isSending ? 'Mengirim...' : 'Tutup Kasir & Kirim Laporan'}
@@ -237,9 +237,9 @@ export default function ReportAdmin({ orders = [], recipes = [], stockItems = []
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-6 py-3 rounded-xl text-sm font-black transition-all whitespace-nowrap ${
+            className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-black transition-all whitespace-nowrap shrink-0 ${
               activeTab === tab 
-                ? "bg-[#4a2d21] text-white shadow-md" 
+                ? "bg-[#4a2d21] text-white shadow-sm" 
                 : "text-slate-500 hover:bg-slate-100"
             }`}
           >

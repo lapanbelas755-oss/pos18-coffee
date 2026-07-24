@@ -20,6 +20,7 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Semua Status");
   const [dateFilter, setDateFilter] = useState("Hari Ini");
+  const [shiftFilter, setShiftFilter] = useState("Semua Shift");
   const [orderToVoid, setOrderToVoid] = useState<string | null>(null);
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
 
@@ -30,13 +31,14 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
     return posOrders.filter(o => {
       if (o.type === "Online" && o.status === "Ready") return false;
       
-      const matchSearch = o.id.toLowerCase().includes(search.toLowerCase()) || (o.table && o.table.toLowerCase().includes(search.toLowerCase()));
+      const matchSearch = o.id.toLowerCase().includes(search.toLowerCase()) || (o.table && o.table.toLowerCase().includes(search.toLowerCase())) || (o.customerName && o.customerName.toLowerCase().includes(search.toLowerCase()));
       const matchStatus = statusFilter === "Semua Status" || o.status === statusFilter;
       const matchDate = dateFilter === "Semua Waktu" || o.time.includes(todayStr);
+      const matchShift = shiftFilter === "Semua Shift" || (o.shiftLabel || "Shift 1") === shiftFilter;
       
-      return matchSearch && matchStatus && matchDate;
+      return matchSearch && matchStatus && matchDate && matchShift;
     });
-  }, [posOrders, search, statusFilter, dateFilter]);
+  }, [posOrders, search, statusFilter, dateFilter, shiftFilter]);
 
   const [orderToPay, setOrderToPay] = useState<Order | null>(null);
 
@@ -235,31 +237,44 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
             />
           </div>
           
-          <div className="ml-auto flex gap-4 items-center">
+          <div className="ml-auto flex gap-3 items-center flex-wrap">
+            <div className="relative">
+              <select 
+                value={shiftFilter}
+                onChange={(e) => setShiftFilter(e.target.value)}
+                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-4 pr-10 py-2 text-slate-600 focus:outline-none focus:border-[#4d3227] text-xs font-bold"
+              >
+                <option>Semua Shift</option>
+                <option>Shift 1</option>
+                <option>Shift 2</option>
+              </select>
+              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-base">expand_more</span>
+            </div>
+
             <div className="relative">
               <select 
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-4 pr-10 py-2 text-slate-600 focus:outline-none focus:border-[#4d3227] min-w-[160px]"
+                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-4 pr-10 py-2 text-slate-600 focus:outline-none focus:border-[#4d3227] text-xs font-bold"
               >
                 <option>Semua Status</option>
                 <option>Unpaid</option>
                 <option>Selesai</option>
                 <option>Batal</option>
               </select>
-              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-base">expand_more</span>
             </div>
             
             <div className="relative">
               <select 
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-4 pr-10 py-2 text-slate-600 focus:outline-none focus:border-[#4d3227] min-w-[140px]"
+                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-4 pr-10 py-2 text-slate-600 focus:outline-none focus:border-[#4d3227] text-xs font-bold"
               >
                 <option>Hari Ini</option>
                 <option>Semua Waktu</option>
               </select>
-              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[18px]">filter_alt</span>
+              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-base">filter_alt</span>
             </div>
           </div>
         </div>

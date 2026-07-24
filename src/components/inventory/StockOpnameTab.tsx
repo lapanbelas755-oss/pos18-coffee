@@ -67,48 +67,48 @@ export default function StockOpnameTab({ stockItems, setStockItems, onNotify }: 
   };
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-[1200px]">
+    <div className="flex flex-col gap-6 w-full max-w-[1200px] min-h-0 flex-1">
       
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-8 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
+        <div className="p-4 sm:p-6 md:p-8 border-b border-slate-200 flex flex-col gap-4">
           <div>
-            <h2 className="text-xl font-extrabold text-slate-800 mb-2">Audit Opname Stok Berkala</h2>
-            <p className="text-sm text-slate-500 font-medium">Hitung secara fisik barang di toko dan periksa silang dengan perkiraan di sistem komputer.</p>
+            <h2 className="text-lg sm:text-xl font-extrabold text-slate-800 mb-1">Audit Opname Stok Berkala</h2>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium">Hitung secara fisik barang di toko dan periksa silang dengan perkiraan di sistem komputer.</p>
           </div>
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 w-full flex-wrap sm:flex-nowrap">
             <button 
               onClick={() => setShowQR("kitchen")}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors whitespace-nowrap border border-slate-200"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 sm:px-4 py-2.5 sm:py-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap border border-slate-200 shrink-0"
             >
-              <span className="material-symbols-outlined text-[18px]">qr_code_2</span>
+              <span className="material-symbols-outlined text-[16px] sm:text-[18px]">qr_code_2</span>
               QR Dapur
             </button>
             <button 
               onClick={() => setShowQR("barista")}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors whitespace-nowrap border border-slate-200"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 sm:px-4 py-2.5 sm:py-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap border border-slate-200 shrink-0"
             >
-              <span className="material-symbols-outlined text-[18px]">qr_code_2</span>
+              <span className="material-symbols-outlined text-[16px] sm:text-[18px]">qr_code_2</span>
               QR Barista
             </button>
             <button 
               onClick={() => setShowQR("waiters")}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors whitespace-nowrap border border-slate-200"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 sm:px-4 py-2.5 sm:py-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap border border-slate-200 shrink-0"
             >
-              <span className="material-symbols-outlined text-[18px]">qr_code_2</span>
+              <span className="material-symbols-outlined text-[16px] sm:text-[18px]">qr_code_2</span>
               QR Waiters
             </button>
             <button 
               onClick={handleApply}
-              className="bg-[#4a2d21] hover:bg-[#382016] text-white px-6 py-3.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors whitespace-nowrap shadow-md ml-2"
+              className="bg-[#4a2d21] hover:bg-[#382016] text-white px-4 sm:px-6 py-2.5 sm:py-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap shadow-md ml-auto shrink-0"
             >
-              <span className="material-symbols-outlined text-[18px]">upload</span>
-              Terapkan Penyesuaian
+              <span className="material-symbols-outlined text-[16px] sm:text-[18px]">upload</span>
+              Terapkan
             </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+        <div className="overflow-auto custom-scrollbar flex-1">
+          <table className="w-full text-left text-sm min-w-[700px]">
             <thead className="bg-[#fafafa]">
               <tr>
                 <th className="px-8 py-5 text-[11px] font-black text-slate-700 uppercase tracking-widest w-[30%]">Barang di Toko</th>

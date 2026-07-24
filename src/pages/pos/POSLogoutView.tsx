@@ -32,7 +32,14 @@ export default function POSLogoutView() {
       
       if (newPin.length === 4) {
         const user = login(newPin);
-        if (user || newPin === "1234") {
+        if (user) {
+          if (!user.permissions?.pos) {
+            setError(true);
+            setPin("");
+            alert(`Akses Ditolak: Akun ${user.name} (${user.role}) tidak memiliki izin untuk modul POS Kasir.`);
+            setTimeout(() => setError(false), 2000);
+            return;
+          }
           navigate("/pos");
         } else {
           setError(true);

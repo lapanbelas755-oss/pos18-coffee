@@ -78,7 +78,15 @@ export function PosProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem('pos_promos');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const loaded: Promo[] = JSON.parse(saved);
+        const todayStr = new Date().toISOString().split('T')[0];
+        // Otomatis update status voucher karyawan yang sudah lewat tanggal menjadi Nonaktif / Kadaluarsa
+        return loaded.map(p => {
+          if (p.type === 'Karyawan' && p.validUntil < todayStr && p.status === 'Aktif') {
+            return { ...p, status: 'Nonaktif' };
+          }
+          return p;
+        });
       } catch (e) {}
     }
     return [];

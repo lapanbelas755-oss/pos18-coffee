@@ -191,46 +191,46 @@ export default function ItemMenuAdmin({ products, setProducts, stockItems, recip
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-[1200px] mx-auto h-full pb-10">
+    <div className="flex flex-col gap-6 max-w-[1200px] mx-auto min-h-0 flex-1 pb-10">
 
       {/* Top Bar Actions */}
       <div className="flex justify-between items-center flex-wrap gap-4 bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
-        <div className="flex gap-2 flex-wrap flex-1">
+        <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1 max-w-full flex-1">
           {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setFilterCat(cat)}
-              className={`px-4 py-2 rounded-full text-sm font-bold border transition-colors ${filterCat === cat ? "bg-[#4a2d21] text-white border-[#4a2d21]" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"}`}
+              className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold border transition-colors whitespace-nowrap shrink-0 ${filterCat === cat ? "bg-[#4a2d21] text-white border-[#4a2d21]" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"}`}
             >
               {cat}
             </button>
           ))}
         </div>
-        <div className="flex gap-3">
-          <button onClick={() => onNotify("Fitur 'Version History' akan segera hadir!", "info")} className="bg-white text-[#4a2d21] border border-[#4a2d21] hover:bg-[#f4ece3] px-5 py-2.5 rounded-xl font-bold text-sm transition-colors">
+        <div className="flex gap-2 w-full sm:w-auto justify-end">
+          <button onClick={() => onNotify("Fitur 'Version History' akan segera hadir!", "info")} className="bg-white text-[#4a2d21] border border-[#4a2d21] hover:bg-[#f4ece3] px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-colors">
             Version History
           </button>
-          <button onClick={() => setIsAddModalOpen(true)} className="bg-[#4a2d21] text-white hover:bg-[#382016] px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-colors flex items-center gap-2">
+          <button onClick={() => setIsAddModalOpen(true)} className="bg-[#4a2d21] text-white hover:bg-[#382016] px-4 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-md transition-colors flex items-center gap-1.5">
             <span className="material-symbols-outlined text-[18px]">add</span>
             Tambah Item
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 flex flex-col flex-1 overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 flex flex-col flex-1 min-h-0 overflow-hidden">
 
         {/* Search + Count */}
-        <div className="p-6 flex items-center justify-between border-b border-slate-100 gap-4">
-          <div className="relative w-full max-w-sm">
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari item menu..." className="w-full bg-[#f4ece3] border-none rounded-full py-3 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a2d21] text-slate-800 placeholder:text-slate-500" />
-            <span className="material-symbols-outlined absolute left-4 top-3 text-slate-500">search</span>
+        <div className="p-4 sm:p-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between border-b border-slate-100 gap-3">
+          <div className="relative w-full sm:max-w-sm">
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari item menu..." className="w-full bg-[#f4ece3] border-none rounded-full py-2.5 sm:py-3 pl-11 pr-4 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#4a2d21] text-slate-800 placeholder:text-slate-500" />
+            <span className="material-symbols-outlined absolute left-4 top-2.5 sm:top-3 text-slate-500 text-lg sm:text-xl">search</span>
           </div>
-          <span className="text-sm font-bold text-slate-600 bg-[#f4ece3] px-4 py-2 rounded-full">{filtered.length} Item Ditemukan</span>
+          <span className="text-xs sm:text-sm font-bold text-slate-600 bg-[#f4ece3] px-4 py-2 rounded-full text-center sm:text-left self-start sm:self-auto">{filtered.length} Item Ditemukan</span>
         </div>
 
-        {/* Table */}
+        {/* Table Container */}
         <div className="flex-1 overflow-auto custom-scrollbar">
-          <table className="w-full text-left text-sm text-slate-700 min-w-[1100px]">
+          <table className="w-full text-left text-sm text-slate-700 min-w-[900px]">
             <thead className="bg-[#fafafa] text-slate-500 font-bold sticky top-0 z-10 border-b border-slate-200">
               <tr>
                 <th className="p-5 text-[11px] uppercase tracking-widest whitespace-nowrap">Nama Item</th>

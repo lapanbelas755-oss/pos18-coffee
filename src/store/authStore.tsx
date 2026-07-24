@@ -34,10 +34,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const fetchEmployees = async () => {
       const { data, error } = await supabase.from('employees').select('*');
       if (data) {
-        setEmployees(data.map(emp => ({
+        const mappedData: Employee[] = data.map(emp => ({
           ...emp,
-          joinDate: emp.join_date
-        })));
+          joinDate: emp.join_date,
+          permissions: emp.permissions || getDefaultPermissions(emp.role)
+        }));
+        setEmployees(mappedData);
+
+        // Sinkronisasi realtime currentUser dengan data terbaru dari database
+        setCurrentUser(prev => {
+          if (!prev) return null;
+          const freshUser = mappedData.find(e => e.id === prev.id);
+          if (!freshUser || freshUser.status === 'Nonaktif') {
+            return null; // Force logout jika akun diset Nonaktif atau dihapus
+          }
+          return freshUser;
+        });
       }
     };
     
