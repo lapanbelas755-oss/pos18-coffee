@@ -119,7 +119,6 @@ function App() {
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/pos" replace />} />
       </Routes>
-      <FullscreenToggle />
       <ScheduledTaskRunner />
     </Suspense>
   );

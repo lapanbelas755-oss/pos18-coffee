@@ -7,6 +7,17 @@ import { calculateItemUnitPrice } from "../../utils/pricing";
 
 export default function CustomerOrderView() {
   const { tableId } = useParams();
+  const [tableName, setTableName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tableId) {
+      supabase.from('tables').select('name').eq('id', tableId).single()
+        .then(({ data, error }) => {
+          if (data && !error) setTableName(data.name);
+        });
+    }
+  }, [tableId]);
+
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem(`cart_${tableId}`);
@@ -445,9 +456,22 @@ export default function CustomerOrderView() {
         </div>
       </div>
 
+      {/* Table Number Box */}
+      {tableId && (
+        <div className="px-4 -mt-6 mb-4 relative z-20">
+          <div className="bg-[#fff5f0] border border-[#ffe0d1] rounded-2xl p-4 flex items-center justify-between shadow-sm">
+            <div>
+              <p className="text-xs text-[#ff7b42] font-bold uppercase tracking-wider mb-0.5">Lokasi Pesanan</p>
+              <p className="text-lg text-[#cc4910] font-black">{tableName ? `Meja ${tableName.replace(/meja /i, '')}` : `Meja ${tableId}`}</p>
+            </div>
+            <span className="material-symbols-outlined text-[#ffcbb3] text-4xl">table_restaurant</span>
+          </div>
+        </div>
+      )}
+
       {/* Search Input Bar */}
       {isSearchActive && (
-        <div className="px-4 -mt-10 mb-4 relative z-20 animate-in slide-in-from-top-4 fade-in duration-300">
+        <div className="px-4 mt-0 mb-4 relative z-20 animate-in slide-in-from-top-4 fade-in duration-300">
           <div className="bg-white rounded-2xl shadow-lg border border-slate-100 flex items-center px-4 py-3">
             <span className="material-symbols-outlined text-slate-400 mr-2">search</span>
             <input
