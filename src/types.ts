@@ -140,6 +140,7 @@ export interface ShiftReport {
   cashSales: number;
   qrisSales: number;
   transferSales?: number;
+  debitSales?: number;
   refundTotal?: number;
   cashInTotal: number;
   cashOutTotal: number;
@@ -185,7 +186,8 @@ export interface Order {
   table: string | null;
   pager: string | null;
   type: "Dine In" | "Take Out" | "Online";
-  payment: string; // e.g., "Cash", "QRIS", "Unpaid"
+  payment: string; // e.g., "Cash", "QRIS", "Transfer", "Debit"
+  refNo?: string; // Nomor referensi EDC Debit atau Bukti Transfer
   amountGiven?: number; // Tunai yang diberikan
   change?: number; // Kembalian
   status: "Unpaid" | "Partially Paid" | "Selesai" | "Batal" | "Ready" | "Pending";

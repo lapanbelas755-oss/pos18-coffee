@@ -10,7 +10,7 @@ interface PaymentModalProps {
   promos?: Promo[];
   customerName?: string;
   onClose: () => void;
-  onSuccess: (method: string, amountGiven: number, change: number, appliedPromo?: Promo | null) => void;
+  onSuccess: (method: string, amountGiven: number, change: number, appliedPromo?: Promo | null, refNo?: string) => void;
   onPartialSuccess?: (method: string, paidItems: CartItem[]) => void;
 }
 
@@ -46,7 +46,8 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
   const finalTotal = Math.max(0, total - discountAmount);
   
   // Tab Penuh State
-  const [method, setMethod] = useState<"Cash" | "QRIS">("Cash");
+  const [method, setMethod] = useState<"Cash" | "QRIS" | "Transfer" | "Debit">("Cash");
+  const [refNo, setRefNo] = useState<string>("");
   const [given, setGiven] = useState<string>("");
   const [qrisUrl, setQrisUrl] = useState<string | null>(null);
   const [qrisOrderId, setQrisOrderId] = useState<string | null>(null);
@@ -273,7 +274,7 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
   }, [activeTab, selectedItemIds, splitBy, method, qrisUrl, qrisTimer, givenNum, finalTotal, partialTotal, partialSubtotal, cartSubtotal, total, discountAmount, customerName]);
 
   // Validation for Penuh
-  const isPenuhValid = method === "QRIS" || (method === "Cash" && givenNum >= finalTotal);
+  const isPenuhValid = method === "QRIS" || method === "Transfer" || method === "Debit" || (method === "Cash" && givenNum >= finalTotal);
 
   const handleQuickAmount = (amount: number) => {
     setGiven(amount.toString());
@@ -302,7 +303,7 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
           change: method === "Cash" ? change : 0,
         });
         isSuccessRef.current = true;
-        onSuccess(method, method === "Cash" ? givenNum : finalTotal, change, appliedPromo);
+        onSuccess(method, method === "Cash" ? givenNum : finalTotal, change, appliedPromo, refNo.trim() || undefined);
       }
     } else if (activeTab === "Split") {
       if (totalPaid >= finalTotal) {
@@ -415,7 +416,7 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
 
                   <div className="space-y-3">
                     <label className="block text-sm font-bold text-slate-700">Metode Pembayaran</label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2.5">
                       <button 
                         type="button"
                         onClick={() => {
@@ -432,22 +433,69 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
                             given: givenNum, change: change >= 0 ? change : 0,
                           });
                         }}
-                        className={`py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 transition-all cursor-pointer ${
-                          method === "Cash" ? "border-[#4d3227] bg-blue-50/50 text-[#4d3227]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                        className={`py-3 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border-2 transition-all cursor-pointer ${
+                          method === "Cash" ? "border-[#4d3227] bg-amber-50/60 text-[#4d3227]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
                         }`}
                       >
-                        <span className="material-symbols-outlined text-[20px]">payments</span>
+                        <span className="material-symbols-outlined text-[18px]">payments</span>
                         Tunai (Cash)
                       </button>
+
                       <button 
                         type="button"
                         onClick={() => handleSelectQris(finalTotal)}
-                        className={`py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 transition-all cursor-pointer ${
-                          method === "QRIS" ? "border-[#4d3227] bg-blue-50/50 text-[#4d3227]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                        className={`py-3 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border-2 transition-all cursor-pointer ${
+                          method === "QRIS" ? "border-[#4d3227] bg-amber-50/60 text-[#4d3227]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
                         }`}
                       >
-                        <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
+                        <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
                         QRIS / e-Wallet
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setMethod("Transfer");
+                          const items = cart.map(item => ({
+                            name: item.product.name, qty: item.quantity,
+                            price: calculateItemUnitPrice(item), notes: item.notes || undefined,
+                          }));
+                          const subtotal = cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0);
+                          broadcastToDisplay({
+                            state: "payment", paymentMethod: "Transfer Bank BSI",
+                            items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
+                            tax: total - subtotal, total: finalTotal,
+                          });
+                        }}
+                        className={`py-3 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border-2 transition-all cursor-pointer ${
+                          method === "Transfer" ? "border-[#4d3227] bg-amber-50/60 text-[#4d3227]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">account_balance</span>
+                        Transfer Bank
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setMethod("Debit");
+                          const items = cart.map(item => ({
+                            name: item.product.name, qty: item.quantity,
+                            price: calculateItemUnitPrice(item), notes: item.notes || undefined,
+                          }));
+                          const subtotal = cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0);
+                          broadcastToDisplay({
+                            state: "payment", paymentMethod: "Debit / Card",
+                            items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
+                            tax: total - subtotal, total: finalTotal,
+                          });
+                        }}
+                        className={`py-3 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border-2 transition-all cursor-pointer ${
+                          method === "Debit" ? "border-[#4d3227] bg-amber-50/60 text-[#4d3227]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">credit_card</span>
+                        Debit / Card
                       </button>
                     </div>
                   </div>
@@ -467,7 +515,7 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
 
               {/* Right Column: Interaction Input */}
               <div className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col justify-center min-h-[380px] md:h-full">
-                {method === "Cash" ? (
+                {method === "Cash" && (
                   <div className="space-y-4 animate-fade-in w-full">
                     <div>
                       <label className="block text-sm font-bold text-slate-700 mb-2">Uang Diterima</label>
@@ -501,7 +549,106 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
                       </div>
                     )}
                   </div>
-                ) : (
+                )}
+
+                {method === "Transfer" && (
+                  <div className="flex flex-col gap-4 animate-fade-in w-full">
+                    <div className="bg-white p-5 rounded-2xl border-2 border-emerald-500/30 shadow-sm space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div className="flex items-center gap-2 text-emerald-800">
+                          <span className="material-symbols-outlined text-2xl">account_balance</span>
+                          <span className="font-extrabold text-base">Informasi Rekening</span>
+                        </div>
+                        <span className="bg-emerald-100 text-emerald-800 font-extrabold text-[11px] px-2.5 py-1 rounded-full uppercase">
+                          Bank BSI
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">Bank</span>
+                          <span className="font-black text-slate-800 text-base">BSI (Bank Syariah Indonesia)</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">No. Rekening</span>
+                          <span className="font-mono font-black text-emerald-700 text-lg tracking-wider bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 select-all">
+                            7367496473
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">Atas Nama (A/N)</span>
+                          <span className="font-extrabold text-slate-800">Lady Pratiwi</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                          <span className="text-slate-600 font-bold">Total Transfer</span>
+                          <span className="font-black text-xl text-[#4d3227]">Rp {finalTotal.toLocaleString("id-ID")}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Nomor Referensi / Catatan Transfer (Opsional)</label>
+                      <input 
+                        type="text" 
+                        value={refNo}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setRefNo(val);
+                          const items = cart.map(item => ({
+                            name: item.product.name, qty: item.quantity,
+                            price: calculateItemUnitPrice(item), notes: item.notes || undefined,
+                          }));
+                          const subtotal = cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0);
+                          broadcastToDisplay({
+                            state: "payment", paymentMethod: "Transfer Bank BSI",
+                            items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
+                            tax: total - subtotal, total: finalTotal, refNo: val,
+                          });
+                        }}
+                        placeholder="Contoh: Ref 123456 / Bukti BSI" 
+                        className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 font-bold text-sm outline-none focus:border-[#4d3227]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {method === "Debit" && (
+                  <div className="flex flex-col gap-4 animate-fade-in w-full">
+                    <div className="bg-white p-5 rounded-2xl border-2 border-blue-500/30 shadow-sm space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div className="flex items-center gap-2 text-blue-800">
+                          <span className="material-symbols-outlined text-2xl">credit_card</span>
+                          <span className="font-extrabold text-base">Mesin EDC / Kartu Debit</span>
+                        </div>
+                        <span className="bg-blue-100 text-blue-800 font-extrabold text-[11px] px-2.5 py-1 rounded-full uppercase">
+                          Card / EDC
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-600 font-bold">Total Tagihan Debit</span>
+                          <span className="font-black text-xl text-[#4d3227]">Rp {finalTotal.toLocaleString("id-ID")}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Nomor Referensi EDC / No. Approval (Opsional/Saran Diisi)
+                      </label>
+                      <input 
+                        type="text" 
+                        value={refNo}
+                        onChange={(e) => setRefNo(e.target.value)}
+                        placeholder="Masukkan No. Resi EDC / Ref Kartu..." 
+                        className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 font-mono font-bold text-sm outline-none focus:border-[#4d3227]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {method === "QRIS" && (
                   <div className="flex flex-col items-center justify-center animate-fade-in text-center w-full">
                     {isGeneratingQris ? (
                       <div className="flex flex-col items-center gap-3">

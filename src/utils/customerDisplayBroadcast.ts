@@ -27,12 +27,13 @@ export interface CustomerDisplayPayload {
   tax?: number;
   total?: number;
   customerName?: string;
-  paymentMethod?: "Cash" | "QRIS";
+  paymentMethod?: string;
   qrisUrl?: string | null;
   qrisTimer?: number;
   orderId?: string;
   change?: number;
   given?: number;
+  refNo?: string;
 }
 
 let remoteChannel: ReturnType<typeof supabase.channel> | null = null;

@@ -79,10 +79,12 @@ export default function POSShiftView({ onNotify, posOrders }: POSShiftViewProps)
     let cashSales = 0;
     let qrisSales = 0;
     let transferSales = 0;
+    let debitSales = 0;
     const tenderCounts: Record<string, { count: number; total: number }> = {
       Cash: { count: 0, total: 0 },
       QRIS: { count: 0, total: 0 },
-      Transfer: { count: 0, total: 0 }
+      Transfer: { count: 0, total: 0 },
+      Debit: { count: 0, total: 0 }
     };
 
     const hourDataMap: Record<number, { pax: number; total: number }> = {};
@@ -96,13 +98,25 @@ export default function POSShiftView({ onNotify, posOrders }: POSShiftViewProps)
         if (!isInShift) return;
         
         const method = o.payment || "Cash";
-        if (!tenderCounts[method]) tenderCounts[method] = { count: 0, total: 0 };
-        tenderCounts[method].count += 1;
-        tenderCounts[method].total += o.total;
+        const mLower = method.toLowerCase();
 
-        if (method === "Cash") cashSales += o.total;
-        else if (method.toLowerCase().includes("qris")) qrisSales += o.total;
-        else transferSales += o.total;
+        if (mLower.includes("cash") || method === "Cash") {
+          tenderCounts["Cash"].count += 1;
+          tenderCounts["Cash"].total += o.total;
+          cashSales += o.total;
+        } else if (mLower.includes("qris")) {
+          tenderCounts["QRIS"].count += 1;
+          tenderCounts["QRIS"].total += o.total;
+          qrisSales += o.total;
+        } else if (mLower.includes("debit") || mLower.includes("card")) {
+          tenderCounts["Debit"].count += 1;
+          tenderCounts["Debit"].total += o.total;
+          debitSales += o.total;
+        } else {
+          tenderCounts["Transfer"].count += 1;
+          tenderCounts["Transfer"].total += o.total;
+          transferSales += o.total;
+        }
 
         // Sales by hour
         const hr = new Date(orderTime || Date.now()).getHours();
@@ -117,9 +131,9 @@ export default function POSShiftView({ onNotify, posOrders }: POSShiftViewProps)
     
     const starting = shift ? shift.startingCash : 0;
     const expectedCash = starting + cashSales + cashInTotal - cashOutTotal;
-    const totalSales = cashSales + qrisSales + transferSales;
+    const totalSales = cashSales + qrisSales + transferSales + debitSales;
 
-    return { cashSales, qrisSales, transferSales, cashInTotal, cashOutTotal, expectedCash, totalSales, starting, tenderCounts, hourDataMap };
+    return { cashSales, qrisSales, transferSales, debitSales, cashInTotal, cashOutTotal, expectedCash, totalSales, starting, tenderCounts, hourDataMap };
   };
 
   const totals = calculateTotals();
@@ -158,12 +172,14 @@ export default function POSShiftView({ onNotify, posOrders }: POSShiftViewProps)
         return t >= shift.openedAt && o.status === "Selesai";
       });
 
-      const tenders = Object.entries(totals.tenderCounts).map(([name, data]) => ({
-        name,
-        count: data.count,
-        total: data.total,
-        percentage: totals.totalSales > 0 ? Math.round((data.total / totals.totalSales) * 100) : 0
-      }));
+      const tenders = Object.entries(totals.tenderCounts)
+        .filter(([_, data]) => data.count > 0 || data.total > 0)
+        .map(([name, data]) => ({
+          name,
+          count: data.count,
+          total: data.total,
+          percentage: totals.totalSales > 0 ? Math.round((data.total / totals.totalSales) * 100) : 0
+        }));
 
       const salesByHour = Object.entries(totals.hourDataMap).map(([hr, data]) => ({
         hour: `${hr}:00`,
@@ -185,6 +201,7 @@ export default function POSShiftView({ onNotify, posOrders }: POSShiftViewProps)
         cashSales: totals.cashSales,
         qrisSales: totals.qrisSales,
         transferSales: totals.transferSales,
+        debitSales: totals.debitSales,
         cashInTotal: totals.cashInTotal,
         cashOutTotal: totals.cashOutTotal,
         expectedCash: totals.expectedCash,

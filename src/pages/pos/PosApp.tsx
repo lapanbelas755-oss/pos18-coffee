@@ -392,7 +392,7 @@ export default function PosApp() {
     return { ...rest, customer_name: customerName || null };
   };
 
-  const handlePrintBillsCheckout = async (method: string, amountGiven?: number, change?: number, itemsOverride?: CartItem[], promoOverride?: Promo | null) => {
+  const handlePrintBillsCheckout = async (method: string, amountGiven?: number, change?: number, itemsOverride?: CartItem[], promoOverride?: Promo | null, refNo?: string) => {
     isTransitioningToSuccess.current = true;
     const itemsToCheckOut = itemsOverride || cart;
     const activePromo = promoOverride !== undefined ? promoOverride : checkoutPromo;
@@ -893,6 +893,7 @@ export default function PosApp() {
       customerName: checkoutCustomerName,
       type: (activeTableId ? "Dine In" : "Take Out") as Order["type"],
       payment: method,
+      refNo,
       amountGiven,
       change,
       status: "Selesai" as Order["status"],
@@ -1467,18 +1468,18 @@ export default function PosApp() {
           promos={promos}
           customerName={checkoutCustomerName}
           onClose={() => setShowPaymentModal(false)}
-          onSuccess={(method, amountGiven, change, appliedPromo) => {
+          onSuccess={(method, amountGiven, change, appliedPromo, refNo) => {
             isTransitioningToSuccess.current = true;
             setShowPaymentModal(false);
             if (appliedPromo) {
               setCheckoutPromo(appliedPromo);
               // Wait for state to update
               setTimeout(() => {
-                handlePrintBillsCheckout(method, amountGiven, change, undefined, appliedPromo);
+                handlePrintBillsCheckout(method, amountGiven, change, undefined, appliedPromo, refNo);
               }, 100);
             } else {
               setCheckoutPromo(null);
-              handlePrintBillsCheckout(method, amountGiven, change, undefined, null);
+              handlePrintBillsCheckout(method, amountGiven, change, undefined, null, refNo);
             }
           }}
           onPartialSuccess={(method, paidItems) => {

@@ -19,6 +19,7 @@ export interface ShiftAggregateRow {
   cashSales: number;
   qrisSales: number;
   transferSales: number;
+  debitSales: number;
   cashOutTotal: number;
   expenses: PettyCash[];
   orders: Order[];
@@ -154,6 +155,7 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
         cashSales: report.cashSales,
         qrisSales: report.qrisSales,
         transferSales: report.transferSales || 0,
+        debitSales: report.debitSales || 0,
         cashOutTotal: report.cashOutTotal,
         expenses: report.expenses || [],
         orders: shiftOrders,
@@ -205,11 +207,13 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
       let cashSales = 0;
       let qrisSales = 0;
       let transferSales = 0;
+      let debitSales = 0;
 
       g.orders.forEach(o => {
         const method = (o.payment || "Cash").toLowerCase();
         if (method.includes("cash")) cashSales += o.total;
         else if (method.includes("qris")) qrisSales += o.total;
+        else if (method.includes("debit") || method.includes("card")) debitSales += o.total;
         else transferSales += o.total;
       });
 
@@ -281,10 +285,11 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
         openedAt,
         isOpen,
         totalOrders: g.orders.length,
-        totalSales: cashSales + qrisSales + transferSales,
+        totalSales: cashSales + qrisSales + transferSales + debitSales,
         cashSales,
         qrisSales,
         transferSales,
+        debitSales,
         cashOutTotal,
         expenses,
         orders: g.orders,
@@ -413,6 +418,7 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
                 <th className="p-4 text-right">Cash</th>
                 <th className="p-4 text-right">QRIS</th>
                 <th className="p-4 text-right">Transfer</th>
+                <th className="p-4 text-right">Debit</th>
                 <th className="p-4 text-center">Aksi</th>
               </tr>
             </thead>
@@ -448,6 +454,9 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
                   </td>
                   <td className="p-4 text-right font-bold text-slate-700">
                     Rp {s.transferSales.toLocaleString("id-ID")}
+                  </td>
+                  <td className="p-4 text-right font-bold text-slate-700">
+                    Rp {s.debitSales.toLocaleString("id-ID")}
                   </td>
                   <td className="p-4 text-center">
                     <button
@@ -535,8 +544,9 @@ export default function CustomerAdmin({ posOrders, transactions = [], tables = [
                       { label: "Cash", value: selectedShift.cashSales, count: selectedShift.orders.filter(o => (o.payment || "Cash").toLowerCase().includes("cash")).length },
                       { label: "QRIS", value: selectedShift.qrisSales, count: selectedShift.orders.filter(o => (o.payment || "").toLowerCase().includes("qris")).length },
                       { label: "Transfer", value: selectedShift.transferSales, count: selectedShift.orders.filter(o => (o.payment || "").toLowerCase().includes("transfer")).length },
+                      { label: "Debit", value: selectedShift.debitSales, count: selectedShift.orders.filter(o => (o.payment || "").toLowerCase().includes("debit") || (o.payment || "").toLowerCase().includes("card")).length },
                     ].map(pm => (
-                      <div key={pm.label} className="flex justify-between items-center p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                      <div key={pm.label} className="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100">
                         <div className="flex items-center gap-2">
                           <span className="font-black text-slate-800">{pm.label}</span>
                           <span className="px-2 py-0.5 bg-slate-200 text-slate-700 font-bold rounded text-[10px]">

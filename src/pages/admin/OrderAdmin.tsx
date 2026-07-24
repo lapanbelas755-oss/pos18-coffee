@@ -126,10 +126,10 @@ export default function OrderAdmin({ posOrders, tables }: OrderAdminProps) {
               <tr>
                 <th className="p-5 text-[11px] uppercase tracking-widest">No. Tiket</th>
                 <th className="p-5 text-[11px] uppercase tracking-widest">Shift / Staf</th>
-                <th className="p-5 text-[11px] uppercase tracking-widest">POS Device</th>
                 <th className="p-5 text-[11px] uppercase tracking-widest text-center">Tipe Pesanan</th>
                 <th className="p-5 text-[11px] uppercase tracking-widest">Meja / Customer</th>
                 <th className="p-5 text-[11px] uppercase tracking-widest">Item Pesanan</th>
+                <th className="p-5 text-[11px] uppercase tracking-widest text-center">Pembayaran</th>
                 <th className="p-5 text-[11px] uppercase tracking-widest text-center">Status</th>
               </tr>
             </thead>
@@ -141,7 +141,6 @@ export default function OrderAdmin({ posOrders, tables }: OrderAdminProps) {
                     <span className="px-2.5 py-1 bg-red-50 text-red-700 font-bold text-xs rounded-md block w-fit mb-1">{order.shiftLabel || "Shift 1"}</span>
                     <span className="text-xs text-slate-500 font-medium">Staf: {order.staff || "Kasir"}</span>
                   </td>
-                  <td className="p-5 text-slate-500 font-medium">{order.posDevice || "POS Kasir 1"}</td>
                   <td className="p-5 text-center">
                     <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#f4ece3] text-[#4a2d21] whitespace-nowrap">{order.type}</span>
                   </td>
@@ -158,6 +157,14 @@ export default function OrderAdmin({ posOrders, tables }: OrderAdminProps) {
                         </li>
                       ))}
                     </ul>
+                  </td>
+                  <td className="p-5 text-center">
+                    <span className="px-2.5 py-1 rounded-md text-xs font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200 block w-fit mx-auto mb-1">
+                      {order.payment || "Cash"}
+                    </span>
+                    {order.refNo && (
+                      <span className="text-[11px] font-mono text-slate-500 font-bold block">Ref: {order.refNo}</span>
+                    )}
                   </td>
                   <td className="p-5 text-center">
                     <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${statusStyle[order.status]}`}>

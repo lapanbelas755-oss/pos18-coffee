@@ -142,37 +142,56 @@ function PaymentScreen({ data }: { data: DisplayData }) {
   const secs = (timer % 60).toString().padStart(2, "0");
   return (
     <div className="cd-payment">
+      {/* ── Kolom Kiri: Ringkasan Pembayaran ── */}
       <div className="cd-payment-left">
-        <div className="cd-pay-brand">☕ Lapanbelas Coffee</div>
-        <h2 className="cd-pay-title">Pembayaran</h2>
-        <div className="cd-pay-summary">
-          {(data.items || []).map((item, i) => (
-            <div key={i} className="cd-pay-item">
-              <span>{item.name} ×{item.qty}</span>
-              <span>Rp {fmt(item.price * item.qty)}</span>
+        <div className="cd-pay-group">
+          <div className="cd-pay-brand">☕ Lapanbelas Coffee</div>
+          <h2 className="cd-pay-title">Pembayaran</h2>
+          <div className="cd-pay-summary">
+            {(data.items || []).map((item, i) => (
+              <div key={i} className="cd-pay-item">
+                <span>{item.name} ×{item.qty}</span>
+                <span>Rp {fmt(item.price * item.qty)}</span>
+              </div>
+            ))}
+            {(data.discount || 0) > 0 && (
+              <div className="cd-pay-item cd-pay-discount">
+                <span>Diskon</span><span>- Rp {fmt(data.discount || 0)}</span>
+              </div>
+            )}
+          </div>
+          <div className="cd-pay-total-box">
+            <span className="cd-pay-total-label">Total Tagihan</span>
+            <span className="cd-pay-total-amount">Rp {fmt(data.total || 0)}</span>
+          </div>
+          {data.paymentMethod === "Cash" && (
+            <div className="cd-pay-cash-info">
+              <span className="material-symbols-outlined">payments</span>
+              <p>Pembayaran Tunai</p>
+              <p className="cd-pay-cash-sub">Serahkan uang kepada kasir</p>
             </div>
-          ))}
-          {(data.discount || 0) > 0 && (
-            <div className="cd-pay-item cd-pay-discount">
-              <span>Diskon</span><span>- Rp {fmt(data.discount || 0)}</span>
+          )}
+          {(data.paymentMethod || "").toLowerCase().includes("transfer") && (
+            <div className="cd-pay-cash-info">
+              <span className="material-symbols-outlined" style={{color:'#34d399'}}>account_balance</span>
+              <p style={{color:'#6ee7b7',fontWeight:700}}>Transfer Bank BSI</p>
+              <p className="cd-pay-cash-sub">Silakan transfer sesuai nominal tagihan</p>
+            </div>
+          )}
+          {(data.paymentMethod || "").toLowerCase().includes("debit") && (
+            <div className="cd-pay-cash-info">
+              <span className="material-symbols-outlined" style={{color:'#60a5fa'}}>credit_card</span>
+              <p style={{color:'#93c5fd',fontWeight:700}}>Pembayaran Debit / EDC</p>
+              <p className="cd-pay-cash-sub">Gesek / Tap kartu pada mesin EDC</p>
             </div>
           )}
         </div>
-        <div className="cd-pay-total-box">
-          <span className="cd-pay-total-label">Total Tagihan</span>
-          <span className="cd-pay-total-amount">Rp {fmt(data.total || 0)}</span>
-        </div>
-        {data.paymentMethod === "Cash" && (
-          <div className="cd-pay-cash-info">
-            <span className="material-symbols-outlined">payments</span>
-            <p>Pembayaran Tunai</p>
-            <p className="cd-pay-cash-sub">Serahkan uang kepada kasir</p>
-          </div>
-        )}
       </div>
+
+      {/* ── Kolom Kanan: Detail Metode ── */}
       <div className="cd-payment-right">
         {data.paymentMethod === "QRIS" && data.qrisUrl ? (
-          <>
+          <div className="cd-pay-group">
             <div className="cd-qris-frame">
               <div className="cd-qris-top-bar">
                 <span className="cd-qris-chip">QRIS</span>
@@ -193,14 +212,76 @@ function PaymentScreen({ data }: { data: DisplayData }) {
                 <span key={w} className="cd-wallet-chip">{w}</span>
               ))}
             </div>
-          </>
+          </div>
         ) : data.paymentMethod === "QRIS" && !data.qrisUrl ? (
           <div className="cd-qris-loading">
             <div className="cd-spin" />
             <p>Memuat QRIS...</p>
           </div>
+        ) : (data.paymentMethod || "").toLowerCase().includes("transfer") ? (
+          <div className="cd-pay-group cd-transfer-card">
+            <div className="cd-transfer-header">
+              <div className="cd-transfer-header-left">
+                <span className="material-symbols-outlined cd-transfer-icon">account_balance</span>
+                <span className="cd-transfer-title">Informasi Rekening</span>
+              </div>
+              <span className="cd-transfer-badge">Bank BSI</span>
+            </div>
+            <div className="cd-transfer-rows">
+              <div className="cd-transfer-row">
+                <span className="cd-transfer-label">Bank</span>
+                <span className="cd-transfer-value">BSI (Bank Syariah Indonesia)</span>
+              </div>
+              <div className="cd-transfer-row">
+                <span className="cd-transfer-label">No. Rekening</span>
+                <span className="cd-transfer-norek">7367496473</span>
+              </div>
+              <div className="cd-transfer-row">
+                <span className="cd-transfer-label">Atas Nama</span>
+                <span className="cd-transfer-value" style={{fontWeight:800}}>Lady Pratiwi</span>
+              </div>
+              {data.refNo && (
+                <div className="cd-transfer-row">
+                  <span className="cd-transfer-label">No. Referensi</span>
+                  <span className="cd-transfer-value" style={{fontFamily:'monospace',color:'#6ee7b7'}}>{data.refNo}</span>
+                </div>
+              )}
+            </div>
+            <div className="cd-transfer-total">
+              <span className="cd-transfer-total-label">Total Transfer</span>
+              <span className="cd-transfer-total-amount">Rp {fmt(data.total || 0)}</span>
+            </div>
+            <p className="cd-transfer-hint">Silakan tunjukkan bukti transfer kepada kasir</p>
+          </div>
+        ) : (data.paymentMethod || "").toLowerCase().includes("debit") ? (
+          <div className="cd-pay-group cd-debit-card">
+            <div className="cd-transfer-header">
+              <div className="cd-transfer-header-left">
+                <span className="material-symbols-outlined cd-debit-icon">credit_card</span>
+                <span className="cd-transfer-title">Pembayaran Debit</span>
+              </div>
+              <span className="cd-debit-badge">EDC Card</span>
+            </div>
+            <div className="cd-transfer-rows">
+              <div className="cd-transfer-row">
+                <span className="cd-transfer-label">Metode</span>
+                <span className="cd-transfer-value" style={{fontWeight:800}}>Kartu Debit / EDC</span>
+              </div>
+              {data.refNo && (
+                <div className="cd-transfer-row">
+                  <span className="cd-transfer-label">No. Referensi</span>
+                  <span className="cd-transfer-value" style={{fontFamily:'monospace',color:'#93c5fd'}}>{data.refNo}</span>
+                </div>
+              )}
+            </div>
+            <div className="cd-transfer-total" style={{borderColor:'rgba(96,165,250,0.3)'}}>
+              <span className="cd-transfer-total-label">Total Tagihan</span>
+              <span className="cd-transfer-total-amount" style={{color:'#60a5fa'}}>Rp {fmt(data.total || 0)}</span>
+            </div>
+            <p className="cd-transfer-hint" style={{color:'rgba(147,197,253,0.5)',borderColor:'rgba(96,165,250,0.15)',background:'rgba(30,58,138,0.2)'}}>Silakan gesek / tap kartu pada mesin EDC Kasir</p>
+          </div>
         ) : (
-          <div className="cd-pay-cash-display">
+          <div className="cd-pay-group cd-pay-cash-display">
             <span className="material-symbols-outlined cd-cash-icon">payments</span>
             <p>Bayar Tunai</p>
             {data.given !== undefined && data.given > 0 && (
@@ -401,7 +482,7 @@ const CSS = `
     flex: 1; display: flex; width: 100%; min-height: 0; overflow: hidden;
   }
   .cd-split-left {
-    flex: 6; /* 60% width */
+    flex: 5; /* 50% width */
     background: #000;
     display: flex; align-items: center; justify-content: center;
     border-right: 1px solid rgba(255,255,255,0.1);
@@ -415,7 +496,7 @@ const CSS = `
     width: 100%; height: 100%; object-fit: contain;
   }
   .cd-split-right {
-    flex: 4; /* 40% width */
+    flex: 5; /* 50% width */
     display: flex; flex-direction: column; position: relative; overflow: hidden;
   }
   .cd-screen { flex: 1; overflow: hidden; position: relative; min-height: 0; display: flex; flex-direction: column; }
@@ -628,12 +709,21 @@ const CSS = `
   .cd-payment {
     width: 100%; height: 100%;
     background: linear-gradient(160deg, #0d0907 0%, #0a0a0f 100%);
-    display: flex; flex-direction: column; /* vertical on mobile */
+    display: flex; flex-direction: column;
     animation: screenFadeIn 0.5s ease; overflow-y: auto;
   }
   .cd-payment-left {
     padding: 16px 16px 10px; flex-shrink: 0;
-    display: flex; flex-direction: column; gap: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .cd-payment-right {
+    flex: 1; padding: 12px 16px 18px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  /* Group wrapper — keeps all children compact with normal gap */
+  .cd-pay-group {
+    display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 420px;
   }
   .cd-pay-brand { font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.4); }
   .cd-pay-title { font-size: 24px; font-weight: 900; color: #fff; letter-spacing: -0.5px; }
@@ -661,12 +751,64 @@ const CSS = `
   }
   .cd-pay-cash-info .material-symbols-outlined { font-size: 24px; color: #f4a261; }
   .cd-pay-cash-sub { font-size: 10px; color: rgba(255,255,255,0.3); }
-  /* QRIS panel */
-  .cd-payment-right {
-    flex: 1; padding: 12px 16px 18px;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
-    border-top: 1px solid rgba(255,255,255,0.06);
+
+  /* ─── Transfer Card ─── */
+  .cd-transfer-card {
+    background: linear-gradient(160deg, #0e1a14 0%, #0a100d 100%);
+    border: 2px solid rgba(52,211,153,0.35); border-radius: 20px;
+    padding: 20px 24px; gap: 16px !important;
+    animation: qrisAppear 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
   }
+  .cd-transfer-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 14px; border-bottom: 1px solid rgba(52,211,153,0.15);
+  }
+  .cd-transfer-header-left { display: flex; align-items: center; gap: 10px; }
+  .cd-transfer-icon { font-size: 28px; color: #34d399; }
+  .cd-transfer-title { font-size: 18px; font-weight: 900; color: #fff; }
+  .cd-transfer-badge {
+    background: #34d399; color: #000; font-size: 10px; font-weight: 900;
+    padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 1px;
+  }
+  .cd-transfer-rows { display: flex; flex-direction: column; gap: 0; }
+  .cd-transfer-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .cd-transfer-label { font-size: 12px; color: rgba(255,255,255,0.45); font-weight: 500; }
+  .cd-transfer-value { font-size: 14px; color: #fff; font-weight: 700; text-align: right; }
+  .cd-transfer-norek {
+    font-family: 'Courier New', monospace; font-size: 20px; font-weight: 900;
+    color: #6ee7b7; letter-spacing: 3px;
+    background: rgba(6,78,59,0.4); border: 1px solid rgba(52,211,153,0.3);
+    padding: 4px 14px; border-radius: 10px;
+  }
+  .cd-transfer-total {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-top: 14px; border-top: 1px solid rgba(52,211,153,0.2);
+  }
+  .cd-transfer-total-label { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.55); }
+  .cd-transfer-total-amount { font-size: 26px; font-weight: 900; color: #34d399; }
+  .cd-transfer-hint {
+    font-size: 11px; text-align: center; font-style: italic;
+    color: rgba(110,231,183,0.4); padding: 8px 12px; border-radius: 12px;
+    background: rgba(6,78,59,0.15); border: 1px solid rgba(52,211,153,0.1);
+  }
+
+  /* ─── Debit Card ─── */
+  .cd-debit-card {
+    background: linear-gradient(160deg, #0e1221 0%, #0a0c16 100%);
+    border: 2px solid rgba(96,165,250,0.35); border-radius: 20px;
+    padding: 20px 24px; gap: 16px !important;
+    animation: qrisAppear 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+  .cd-debit-icon { font-size: 28px; color: #60a5fa; }
+  .cd-debit-badge {
+    background: #60a5fa; color: #000; font-size: 10px; font-weight: 900;
+    padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 1px;
+  }
+
+  /* QRIS panel */
   .cd-qris-frame {
     background: #fff; border-radius: 18px; padding: 14px;
     box-shadow: 0 0 40px rgba(124,63,31,0.3), 0 12px 30px rgba(0,0,0,0.5);
@@ -705,35 +847,47 @@ const CSS = `
   .cd-pay-cash-display { display: flex; flex-direction: column; align-items: center; gap: 10px; color: rgba(255,255,255,0.3); font-size: 14px; font-weight: 600; }
   .cd-cash-icon { font-size: 48px; color: rgba(255,255,255,0.15); }
 
-  /* Tablet+: side-by-side */
+  /* Tablet+: side-by-side — centered content groups */
   @media (min-width: 640px) {
-    .cd-payment { flex-direction: row; overflow: hidden; }
+    .cd-payment { flex-direction: row; height: 100%; overflow: hidden; }
     .cd-payment-left {
-      flex: 1; padding: 32px 36px 32px 44px; gap: 18px;
+      flex: 1; padding: 24px 28px;
       border-right: 1px solid rgba(255,255,255,0.06); border-top: none;
-      justify-content: center;
+      justify-content: center; align-items: center; overflow-y: auto; box-sizing: border-box;
     }
-    .cd-pay-brand { font-size: 15px; }
-    .cd-pay-title { font-size: 34px; }
-    .cd-pay-summary { max-height: 180px; }
-    .cd-pay-item { font-size: 14px; }
-    .cd-pay-total-box { padding: 16px 20px; }
-    .cd-pay-total-label { font-size: 14px; }
-    .cd-pay-total-amount { font-size: 30px; }
-    .cd-payment-right { width: 300px; padding: 32px; border-top: none; }
+    .cd-payment-right {
+      flex: 1; padding: 24px; box-sizing: border-box;
+      border-top: none; justify-content: center; align-items: center; overflow: hidden;
+    }
+    .cd-pay-group { max-width: 420px; gap: 14px; }
+    .cd-pay-brand { font-size: 14px; }
+    .cd-pay-title { font-size: 28px; }
+    .cd-pay-summary { max-height: 140px; }
+    .cd-pay-item { font-size: 13px; }
+    .cd-pay-total-box { padding: 14px 18px; }
+    .cd-pay-total-label { font-size: 13px; }
+    .cd-pay-total-amount { font-size: 26px; }
     .cd-qris-frame { max-width: 260px; padding: 16px; }
     .cd-qris-img { width: 170px; height: 170px; }
     .cd-qris-amount { font-size: 20px; }
+    .cd-transfer-card, .cd-debit-card { padding: 24px 28px; }
+    .cd-transfer-norek { font-size: 22px; }
+    .cd-transfer-total-amount { font-size: 28px; }
   }
   @media (min-width: 1024px) {
-    .cd-payment-left { padding: 48px 48px 48px 60px; gap: 22px; }
-    .cd-pay-title { font-size: 42px; }
-    .cd-pay-total-amount { font-size: 36px; }
-    .cd-payment-right { width: 400px; padding: 44px; }
+    .cd-payment-left { padding: 32px 36px; }
+    .cd-payment-right { padding: 32px 36px; }
+    .cd-pay-group { gap: 18px; }
+    .cd-pay-title { font-size: 32px; }
+    .cd-pay-total-amount { font-size: 28px; }
     .cd-qris-frame { max-width: 320px; padding: 18px; }
     .cd-qris-img { width: 200px; height: 200px; }
     .cd-qris-amount { font-size: 22px; }
     .cd-qris-hint { font-size: 12px; max-width: 300px; }
+    .cd-transfer-card, .cd-debit-card { padding: 28px 32px; }
+    .cd-transfer-title { font-size: 20px; }
+    .cd-transfer-norek { font-size: 24px; letter-spacing: 4px; }
+    .cd-transfer-total-amount { font-size: 32px; }
   }
 
   /* ══════════════════════════════

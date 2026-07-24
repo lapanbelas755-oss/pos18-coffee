@@ -53,10 +53,10 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
     return { ...rest, customer_name: customerName || null };
   };
 
-  const handlePaymentSuccess = (method: string, amountGiven?: number, change?: number) => {
+  const handlePaymentSuccess = (method: string, amountGiven?: number, change?: number, appliedPromo?: any, refNo?: string) => {
     if (!orderToPay) return;
 
-    setPosOrders(prev => prev.map(o => o.id === orderToPay.id ? { ...o, status: "Selesai", payment: method, amountGiven, change } : o));
+    setPosOrders(prev => prev.map(o => o.id === orderToPay.id ? { ...o, status: "Selesai", payment: method, refNo, amountGiven, change } : o));
 
     if (orderToPay.table) {
       setTables(prev => prev.map(t => {
@@ -71,9 +71,9 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
       }));
     }
     
-    supabase.from('orders').update({ status: "Selesai", payment: method }).eq('id', orderToPay.id).then();
+    supabase.from('orders').update({ status: "Selesai", payment: method, ref_no: refNo }).eq('id', orderToPay.id).then();
 
-    onNotify(`Pembayaran pesanan ${orderToPay.id} berhasil diproses dengan ${method}.`, "success");
+    onNotify(`Pembayaran pesanan ${orderToPay.id} berhasil diproses dengan ${method}${refNo ? ` (Ref: ${refNo})` : ''}.`, "success");
     setOrderToPay(null);
   };
 
@@ -507,6 +507,12 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
                   <span>Subtotal Item</span>
                   <span>
                     Rp {selectedOrderDetails.items.reduce((sum, item) => sum + calculateItemUnitPrice(item) * item.quantity, 0).toLocaleString("id-ID")}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                  <span>Metode Pembayaran</span>
+                  <span className="font-extrabold text-slate-800">
+                    {selectedOrderDetails.payment} {selectedOrderDetails.refNo ? `(Ref: ${selectedOrderDetails.refNo})` : ''}
                   </span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-dashed border-slate-200 mt-1">
