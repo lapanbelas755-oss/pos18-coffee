@@ -18,6 +18,7 @@ import PaymentModal from "../../components/pos/PaymentModal";
 import { supabase } from "../../lib/supabase";
 import { calculateItemUnitPrice } from "../../utils/pricing";
 import { calculateMaxServings } from "../../utils/inventory";
+import { loyaltyService } from "../../modules/loyalty/loyaltyService";
 import { printReceipt, buildKasirReceipt, buildDapurTicket, buildBaristaTicket, reconnectPrinter, isConnected } from "../../utils/bluetoothPrinter";
 import { usePosStore } from "../../store/posStore";
 import { useAuthStore } from "../../store/authStore";
@@ -392,7 +393,7 @@ export default function PosApp() {
     return { ...rest, customer_name: customerName || null };
   };
 
-  const handlePrintBillsCheckout = async (method: string, amountGiven?: number, change?: number, itemsOverride?: CartItem[], promoOverride?: Promo | null, refNo?: string) => {
+  const handlePrintBillsCheckout = async (method: string, amountGiven?: number, change?: number, itemsOverride?: CartItem[], promoOverride?: Promo | null, refNo?: string, loyaltyMemberId?: string) => {
     isTransitioningToSuccess.current = true;
     const itemsToCheckOut = itemsOverride || cart;
     const activePromo = promoOverride !== undefined ? promoOverride : checkoutPromo;
@@ -1028,6 +1029,15 @@ export default function PosApp() {
       }
     });
 
+    // ── Loyalty Point Awarding ──
+    if (loyaltyMemberId) {
+      loyaltyService.calculateAndAwardPoint(newOrder.id, total, loyaltyMemberId).then(awarded => {
+        if (awarded) {
+          triggerToast(`Loyalty Point berhasil ditambahkan!`, "success");
+        }
+      });
+    }
+
     // KDS Optimistic insert handled conditionally above
 
     if (itemsToCheckOut.length === cart.length) {
@@ -1468,18 +1478,18 @@ export default function PosApp() {
           promos={promos}
           customerName={checkoutCustomerName}
           onClose={() => setShowPaymentModal(false)}
-          onSuccess={(method, amountGiven, change, appliedPromo, refNo) => {
+          onSuccess={(method, amountGiven, change, appliedPromo, refNo, loyaltyMemberId) => {
             isTransitioningToSuccess.current = true;
             setShowPaymentModal(false);
             if (appliedPromo) {
               setCheckoutPromo(appliedPromo);
               // Wait for state to update
               setTimeout(() => {
-                handlePrintBillsCheckout(method, amountGiven, change, undefined, appliedPromo, refNo);
+                handlePrintBillsCheckout(method, amountGiven, change, undefined, appliedPromo, refNo, loyaltyMemberId);
               }, 100);
             } else {
               setCheckoutPromo(null);
-              handlePrintBillsCheckout(method, amountGiven, change, undefined, null, refNo);
+              handlePrintBillsCheckout(method, amountGiven, change, undefined, null, refNo, loyaltyMemberId);
             }
           }}
           onPartialSuccess={(method, paidItems) => {

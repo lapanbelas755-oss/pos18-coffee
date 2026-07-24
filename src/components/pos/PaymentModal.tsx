@@ -3,6 +3,8 @@ import { QRCodeSVG } from "qrcode.react";
 import { CartItem, Promo } from "../../types";
 import { calculateItemUnitPrice } from "../../utils/pricing";
 import { broadcastToDisplay, clearDisplay } from "../../utils/customerDisplayBroadcast";
+import { LoyaltyMember, LoyaltySettings } from "../../types";
+import { loyaltyService } from "../../modules/loyalty/loyaltyService";
 
 interface PaymentModalProps {
   total: number; // This is now subtotal + tax (no promo applied yet)
@@ -10,7 +12,7 @@ interface PaymentModalProps {
   promos?: Promo[];
   customerName?: string;
   onClose: () => void;
-  onSuccess: (method: string, amountGiven: number, change: number, appliedPromo?: Promo | null, refNo?: string) => void;
+  onSuccess: (method: string, amountGiven: number, change: number, appliedPromo?: Promo | null, refNo?: string, loyaltyMemberId?: string) => void;
   onPartialSuccess?: (method: string, paidItems: CartItem[]) => void;
 }
 
@@ -21,6 +23,15 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
   const [showPromoModal, setShowPromoModal] = useState(false);
   const [promoCodeInput, setPromoCodeInput] = useState("");
   const [appliedPromo, setAppliedPromo] = useState<Promo | null>(null);
+
+  // Loyalty State
+  const [memberPhoneSearch, setMemberPhoneSearch] = useState("");
+  const [loyaltyMember, setLoyaltyMember] = useState<LoyaltyMember | null>(null);
+  const [isSearchingMember, setIsSearchingMember] = useState(false);
+  const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings | null>(null);
+  const [showCreateMember, setShowCreateMember] = useState(false);
+  const [newMemberData, setNewMemberData] = useState({ name: customerName || "", phone: "", birthday: "" });
+  const [memberMessage, setMemberMessage] = useState<{ text: string, type: "success" | "error" | "info" } | null>(null);
   
   const isSuccessRef = React.useRef(false);
 
@@ -55,6 +66,57 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
   const [qrisError, setQrisError] = useState<string | null>(null);
   const [qrisTimer, setQrisTimer] = useState<number>(900);
 
+  useEffect(() => {
+    loyaltyService.getSettings().then(settings => {
+      if (settings) setLoyaltySettings(settings);
+    });
+  }, []);
+
+  const handleSearchMember = async () => {
+    if (!memberPhoneSearch) return;
+    setIsSearchingMember(true);
+    setMemberMessage(null);
+    try {
+      const member = await loyaltyService.searchMember(memberPhoneSearch);
+      if (member) {
+        setLoyaltyMember(member);
+        setMemberMessage({ text: `Welcome back, ${member.full_name}!`, type: "success" });
+        setShowCreateMember(false);
+      } else {
+        setLoyaltyMember(null);
+        setNewMemberData(prev => ({ ...prev, phone: memberPhoneSearch }));
+        setShowCreateMember(true);
+        setMemberMessage({ text: "Member tidak ditemukan. Silakan daftar.", type: "info" });
+      }
+    } catch (e) {
+      setMemberMessage({ text: "Terjadi kesalahan saat mencari member.", type: "error" });
+    } finally {
+      setIsSearchingMember(false);
+    }
+  };
+
+  const handleCreateMember = async () => {
+    if (!newMemberData.name || !newMemberData.phone) {
+      setMemberMessage({ text: "Nama dan No HP wajib diisi.", type: "error" });
+      return;
+    }
+    setIsSearchingMember(true);
+    try {
+      const newMember = await loyaltyService.createMember(newMemberData.name, newMemberData.phone, newMemberData.birthday);
+      if (newMember) {
+        setLoyaltyMember(newMember);
+        setShowCreateMember(false);
+        setMemberMessage({ text: `Member berhasil dibuat! Welcome, ${newMember.full_name}.`, type: "success" });
+      } else {
+        setMemberMessage({ text: "Gagal membuat member. Data kosong.", type: "error" });
+      }
+    } catch (e: any) {
+      setMemberMessage({ text: `Gagal: ${e.message}`, type: "error" });
+    } finally {
+      setIsSearchingMember(false);
+    }
+  };
+
   // ── Broadcast "order" state when modal first opens ──
   useEffect(() => {
     const items = cart.map(item => ({
@@ -71,6 +133,7 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
       tax: total - subtotal,
       total,
       customerName,
+      ...getMemberBroadcastData()
     });
     return () => {
       if (!isSuccessRef.current) {
@@ -82,6 +145,15 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
   const givenNum = parseInt(given.replace(/\D/g, "")) || 0;
   const change = method === "Cash" ? givenNum - finalTotal : 0;
   
+  const getMemberBroadcastData = () => {
+    if (!loyaltyMember || !loyaltySettings) return {};
+    return {
+      memberName: loyaltyMember.full_name,
+      memberPoints: loyaltyMember.total_point,
+      memberPointsEarned: Math.floor(finalTotal / loyaltySettings.point_per_amount)
+    };
+  };
+
   const broadcastLiveCash = (newGivenNum: number) => {
     if (activeTab === "Penuh" && method === "Cash") {
       const items = cart.map(item => ({
@@ -95,9 +167,34 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
         items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
         tax: total - subtotal, total: finalTotal,
         given: newGivenNum, change: newChange >= 0 ? newChange : 0,
+        ...getMemberBroadcastData()
       });
     }
   };
+
+  // Re-broadcast saat member terpilih/berubah agar Customer Display langsung terupdate
+  useEffect(() => {
+    if (isSuccessRef.current) return;
+    if (activeTab === "Penuh" && method === "Cash") {
+      broadcastLiveCash(givenNum);
+    } else {
+      // Re-broadcast "order" state for other methods initially
+      const items = cart.map(item => ({
+        name: item.product.name, qty: item.quantity,
+        price: calculateItemUnitPrice(item), notes: item.notes || undefined,
+      }));
+      const subtotal = cart.reduce((s, i) => s + calculateItemUnitPrice(i) * i.quantity, 0);
+      broadcastToDisplay({
+        state: "order",
+        items,
+        subtotal,
+        tax: total - subtotal,
+        total,
+        customerName,
+        ...getMemberBroadcastData()
+      });
+    }
+  }, [loyaltyMember, appliedPromo]);
 
   // ── Timer countdown for QRIS expiration ──
   useEffect(() => {
@@ -130,7 +227,7 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
             clearInterval(interval);
             if (activeTab === "Penuh") {
               isSuccessRef.current = true;
-              onSuccess("QRIS", finalTotal, 0, appliedPromo); // Sukses & Otomatis Selesai
+              onSuccess("QRIS", finalTotal, 0, appliedPromo, undefined, loyaltyMember?.id); // Sukses & Otomatis Selesai
             } else if (activeTab === "Item") {
               if (selectedItemIds.length > 0 && onPartialSuccess) {
                 isSuccessRef.current = true;
@@ -177,6 +274,7 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
       state: "payment", paymentMethod: "QRIS", qrisUrl: null, qrisTimer: 900,
       items: displayItems, subtotal: targetSubtotal, discount: activeTab === "Item" ? 0 : discountAmount, discountName: appliedPromo?.title,
       tax: activeTab === "Item" ? Math.max(0, chargeAmount - targetSubtotal) : Math.max(0, total - targetSubtotal), total: chargeAmount,
+      ...getMemberBroadcastData()
     });
 
     try {
@@ -301,16 +399,17 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
           items, subtotal, discount: discountAmount, discountName: appliedPromo?.title,
           tax: total - subtotal, total: finalTotal,
           change: method === "Cash" ? change : 0,
+          ...getMemberBroadcastData()
         });
         isSuccessRef.current = true;
-        onSuccess(method, method === "Cash" ? givenNum : finalTotal, change, appliedPromo, refNo.trim() || undefined);
+        onSuccess(method, method === "Cash" ? givenNum : finalTotal, change, appliedPromo, refNo.trim() || undefined, loyaltyMember?.id);
       }
     } else if (activeTab === "Split") {
       if (totalPaid >= finalTotal) {
         const methods = [...new Set(payments.map(p => p.method))];
         const primaryMethod = methods.length === 1 ? methods[0] : `Multi (${methods.join("+")})`;
         clearDisplay();
-        onSuccess(primaryMethod, finalTotal, 0, appliedPromo);
+        onSuccess(primaryMethod, finalTotal, 0, appliedPromo, undefined, loyaltyMember?.id);
       }
     } else if (activeTab === "Item") {
       if (selectedItemIds.length > 0 && onPartialSuccess) {
@@ -388,6 +487,60 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
               {/* Left Column: Summary and Methods */}
               <div className="flex-1 flex flex-col justify-between gap-6">
                 <div className="space-y-6">
+                  {/* LOYALTY MEMBER SECTION */}
+                  <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-200">
+                    {!showCreateMember && !loyaltyMember ? (
+                      <div className="space-y-3">
+                        <label className="block text-sm font-bold text-orange-900">Member Loyalty</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Nomor HP Member"
+                            value={memberPhoneSearch}
+                            onChange={(e) => setMemberPhoneSearch(e.target.value)}
+                            className="flex-1 bg-white border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSearchMember}
+                            disabled={isSearchingMember}
+                            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50"
+                          >
+                            Cari
+                          </button>
+                        </div>
+                        {memberMessage && <p className={`text-xs mt-1 font-semibold ${memberMessage.type === 'error' ? 'text-red-500' : memberMessage.type === 'success' ? 'text-green-600' : 'text-blue-500'}`}>{memberMessage.text}</p>}
+                      </div>
+                    ) : showCreateMember ? (
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <label className="block text-sm font-bold text-orange-900">Daftar Member Baru</label>
+                          <button type="button" onClick={() => setShowCreateMember(false)} className="text-xs text-slate-500 hover:text-slate-700">Batal</button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input type="text" placeholder="Nama Lengkap" value={newMemberData.name} onChange={(e) => setNewMemberData(prev => ({...prev, name: e.target.value}))} className="bg-white border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none col-span-2 sm:col-span-1" />
+                          <input type="text" placeholder="Nomor HP" value={newMemberData.phone} onChange={(e) => setNewMemberData(prev => ({...prev, phone: e.target.value}))} className="bg-white border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none col-span-2 sm:col-span-1" />
+                        </div>
+                        <button type="button" onClick={handleCreateMember} disabled={isSearchingMember} className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-bold disabled:opacity-50">Daftar Member</button>
+                        {memberMessage && <p className={`text-xs font-semibold ${memberMessage.type === 'error' ? 'text-red-500' : 'text-blue-500'}`}>{memberMessage.text}</p>}
+                      </div>
+                    ) : loyaltyMember && loyaltySettings ? (
+                      <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-orange-100 shadow-sm relative">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-800">{loyaltyMember.full_name}</span>
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">{loyaltyMember.level}</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">Saldo: <span className="font-bold text-orange-600">{loyaltyMember.total_point} Poin</span></p>
+                          <p className="text-[10px] text-slate-400 mt-1">+ {Math.floor(finalTotal / loyaltySettings.point_per_amount)} Poin dari trx ini</p>
+                        </div>
+                        <button type="button" onClick={() => setLoyaltyMember(null)} className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600">
+                          <span className="material-symbols-outlined text-[14px]">close</span>
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col gap-2">
                     <div className="flex justify-between items-center text-sm font-bold text-slate-500">
                       <span>Subtotal</span>

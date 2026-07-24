@@ -273,3 +273,60 @@ export interface Promo {
   employeeId?: string;
   shift?: "Pagi" | "Siang" | "Malam";
 }
+
+// ==========================================
+// LOYALTY SYSTEM INTERFACES
+// ==========================================
+
+export interface LoyaltyMember {
+  id: string;
+  member_code: string;
+  full_name: string;
+  phone: string;
+  email?: string;
+  birthday?: string;
+  level: "Bronze" | "Silver" | "Gold" | "Platinum";
+  total_point: number;
+  total_spending: number;
+  total_transaction: number;
+  status: "Aktif" | "Nonaktif";
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LoyaltyPointHistory {
+  id: string;
+  member_id: string;
+  order_id: string;
+  type: "Earn" | "Redeem" | "Adjust" | "Birthday";
+  point: number;
+  balance_after: number;
+  description: string;
+  created_at?: string;
+}
+
+export interface LoyaltyReward {
+  id: string;
+  reward_name: string;
+  required_point: number;
+  reward_type: "Product" | "Discount" | "Voucher";
+  reward_value: string;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export interface LoyaltySettings {
+  id: number;
+  point_per_amount: number;
+  point_expired_month: number;
+  birthday_bonus: number;
+  minimum_redeem: number;
+  level_bronze_max: number;
+  level_silver_max: number;
+  level_gold_max: number;
+  double_point_day?: string;
+  double_point_time?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+

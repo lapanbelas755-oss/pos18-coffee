@@ -34,6 +34,9 @@ export interface CustomerDisplayPayload {
   change?: number;
   given?: number;
   refNo?: string;
+  memberName?: string;
+  memberPoints?: number;
+  memberPointsEarned?: number;
 }
 
 let remoteChannel: ReturnType<typeof supabase.channel> | null = null;

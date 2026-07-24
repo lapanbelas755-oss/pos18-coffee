@@ -75,6 +75,7 @@ export default function AdminLayout() {
       items: [
         { id: "/admin/finance", name: "Keuangan", icon: "account_balance", permKey: "admin" },
         { id: "/admin/report", name: "Laporan", icon: "monitoring", permKey: "reports" },
+        { id: "/admin/loyalty", name: "Loyalty & Member", icon: "loyalty", permKey: "admin" },
         { id: "/admin/employees", name: "Karyawan", icon: "group", permKey: "admin" },
         { id: "/pos", name: "Kembali ke POS", icon: "point_of_sale" },
       ]

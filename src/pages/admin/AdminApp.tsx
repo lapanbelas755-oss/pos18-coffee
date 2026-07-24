@@ -17,6 +17,7 @@ import QueueDisplayAdmin from "./QueueDisplayAdmin";
 import ReportAdmin from "./ReportAdmin";
 import EmployeeAdmin from "./EmployeeAdmin";
 import CustomerAdmin from "./CustomerAdmin";
+import LoyaltyAdmin from "./LoyaltyAdmin";
 
 function AdminPinLogin({ onAuthorized }: { onAuthorized: () => void }) {
   const navigate = useNavigate();
@@ -266,6 +267,7 @@ export default function AdminApp() {
           <Route path="report" element={<AdminPermissionGuard requiredPermission="reports"><ReportAdmin orders={posOrders} recipes={recipes} stockItems={stockItems} /></AdminPermissionGuard>} />
           <Route path="employees" element={<AdminPermissionGuard requiredPermission="admin"><EmployeeAdmin /></AdminPermissionGuard>} />
           <Route path="customers" element={<CustomerAdmin posOrders={posOrders} transactions={transactions} tables={tables} />} />
+          <Route path="loyalty" element={<AdminPermissionGuard requiredPermission="admin"><LoyaltyAdmin /></AdminPermissionGuard>} />
         </Route>
       </Routes>
     </>

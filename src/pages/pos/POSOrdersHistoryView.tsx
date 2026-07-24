@@ -25,15 +25,36 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
 
   const filteredOrders = useMemo(() => {
-    // Determine today's date string in the same format as o.time ("17 Jul 2026")
-    const todayStr = new Date().toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+    const now = new Date();
+    // todayDateStr menggunakan waktu LOKAL bukan UTC
+    const todayDateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+
+    const getLocalDateStr = (dateInput: string | undefined | null): string => {
+      if (!dateInput) return '';
+      const d = new Date(dateInput);
+      if (isNaN(d.getTime())) return '';
+      // Gunakan waktu lokal (bukan UTC) untuk perbandingan
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    };
     
     return posOrders.filter(o => {
       if (o.type === "Online" && o.status === "Ready") return false;
       
       const matchSearch = o.id.toLowerCase().includes(search.toLowerCase()) || (o.table && o.table.toLowerCase().includes(search.toLowerCase())) || (o.customerName && o.customerName.toLowerCase().includes(search.toLowerCase()));
       const matchStatus = statusFilter === "Semua Status" || o.status === statusFilter;
-      const matchDate = dateFilter === "Semua Waktu" || o.time.includes(todayStr);
+      
+      let matchDate = false;
+      if (dateFilter === "Semua Waktu") {
+        matchDate = true;
+      } else {
+        // Coba created_at (ISO dari Supabase) dulu, fallback ke o.time
+        const isoDate = (o as any).created_at;
+        const localDateStr = getLocalDateStr(isoDate) || getLocalDateStr(o.time);
+        if (localDateStr) {
+          matchDate = localDateStr === todayDateStr;
+        }
+      }
+
       const matchShift = shiftFilter === "Semua Shift" || (o.shiftLabel || "Shift 1") === shiftFilter;
       
       return matchSearch && matchStatus && matchDate && matchShift;

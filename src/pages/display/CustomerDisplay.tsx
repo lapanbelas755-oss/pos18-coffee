@@ -24,6 +24,9 @@ interface DisplayData {
   orderId?: string;
   change?: number;
   given?: number;
+  memberName?: string;
+  memberPoints?: number;
+  memberPointsEarned?: number;
 }
 
 const STORAGE_KEY = "pos_customer_display";
@@ -79,7 +82,11 @@ function OrderScreen({ data }: { data: DisplayData }) {
         <div className="cd-order-logo">☕</div>
         <div>
           <h2 className="cd-order-title">Ringkasan Pesanan</h2>
-          {data.customerName && <p className="cd-order-customer">Halo, <strong>{data.customerName}</strong> 👋</p>}
+          {data.memberName ? (
+            <p className="cd-order-customer">Member: <strong style={{color:'#fcd34d'}}>{data.memberName}</strong> 🌟</p>
+          ) : data.customerName ? (
+            <p className="cd-order-customer">Halo, <strong>{data.customerName}</strong> 👋</p>
+          ) : null}
         </div>
         <div className="cd-order-badge">
           <span className="material-symbols-outlined">receipt_long</span>
@@ -147,6 +154,15 @@ function PaymentScreen({ data }: { data: DisplayData }) {
         <div className="cd-pay-group">
           <div className="cd-pay-brand">☕ Lapanbelas Coffee</div>
           <h2 className="cd-pay-title">Pembayaran</h2>
+          {data.memberName ? (
+            <p className="text-orange-300 font-bold mb-4 text-sm bg-orange-900/30 inline-block px-3 py-1 rounded-full border border-orange-500/30">
+              Member: <span className="text-white">{data.memberName}</span> 🌟
+            </p>
+          ) : data.customerName ? (
+            <p className="text-white/60 font-medium mb-4 text-sm">
+              Pelanggan: <span className="text-white">{data.customerName}</span>
+            </p>
+          ) : null}
           <div className="cd-pay-summary">
             {(data.items || []).map((item, i) => (
               <div key={i} className="cd-pay-item">
@@ -321,6 +337,25 @@ function SuccessScreen({ data }: { data: DisplayData }) {
           <div className="cd-change-box">
             <span>Kembalian Anda</span>
             <span className="cd-change-amount">Rp {fmt(data.change)}</span>
+          </div>
+        )}
+        
+        {data.memberName && (
+          <div className="mt-6 p-5 rounded-2xl bg-orange-50 border border-orange-100 text-center animate-fade-in mx-auto max-w-md shadow-sm">
+            <h3 className="text-lg font-extrabold text-orange-900 mb-2">Selamat datang, Kak {data.memberName} 👋</h3>
+            <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
+              <div className="bg-white p-2 rounded-xl shadow-sm border border-orange-50">
+                <p className="text-orange-500 font-bold text-xs">Poin Saat Ini</p>
+                <p className="text-lg font-black text-slate-800">{data.memberPoints || 0}</p>
+              </div>
+              <div className="bg-white p-2 rounded-xl shadow-sm border border-orange-50">
+                <p className="text-orange-500 font-bold text-xs">Poin Tambahan</p>
+                <p className="text-lg font-black text-slate-800">+{data.memberPointsEarned || 0}</p>
+              </div>
+            </div>
+            <p className="text-xs text-orange-700 mt-3 font-semibold">
+              Setelah transaksi ini, poin menjadi: <strong className="text-orange-900 font-black text-sm">{(data.memberPoints || 0) + (data.memberPointsEarned || 0)}</strong>
+            </p>
           </div>
         )}
         <div className="cd-success-order-mini">
