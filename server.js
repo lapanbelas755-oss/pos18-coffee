@@ -243,13 +243,17 @@ app.post('/api/midtrans-notification', async (req, res) => {
   res.json({ ok: true, message: 'Order created from webhook' });
 });
 
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 // All other GET requests not handled before will return the React app
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3002;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n✅ POS18 Server berjalan di port ${PORT}`);
   console.log(`👉 Mode: ${IS_PRODUCTION ? 'PRODUCTION' : 'SANDBOX'}`);
   console.log(`📡 API & Frontend siap digunakan!\n`);
