@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
@@ -13,13 +14,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Supabase Client (server-side)
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL || '',
+  process.env.VITE_SUPABASE_ANON_KEY || ''
+);
+
 // Serve static files from the React app
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // Ganti Server Key ini dengan Server Key Midtrans Sandbox / Production Anda
-// JANGAN di-share ke orang lain!
 const SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || 'YOUR_MIDTRANS_SERVER_KEY';
-const IS_PRODUCTION = true; // Ubah ke true jika sudah siap live (Production)
+const IS_PRODUCTION = true;
 
 const BASE_URL = IS_PRODUCTION 
   ? 'https://app.midtrans.com/snap/v1/transactions' 
@@ -123,6 +129,78 @@ app.get('/api/qris/status/:order_id', async (req, res) => {
     console.error('Error checking status:', err);
     res.status(500).json({ error: 'Failed to check status' });
   }
+});
+
+// ─── Midtrans Payment Notification Webhook ───────────────────────────────────
+// Midtrans will POST here when a payment is settled.
+// Set this URL in Midtrans Dashboard → Settings → Configuration → Payment Notification URL
+// Example: https://your-domain.com/api/midtrans/notification
+app.post('/api/midtrans/notification', async (req, res) => {
+  const notif = req.body;
+  console.log('[Midtrans Notification]', notif?.order_id, notif?.transaction_status);
+
+  // Only process settlement or capture
+  const status = notif?.transaction_status;
+  if (status !== 'settlement' && status !== 'capture') {
+    return res.json({ ok: true, message: `Status ${status} diabaikan` });
+  }
+
+  const midtransOrderId = notif.order_id; // e.g. "POS18-ONL-4780-1753419123456"
+  const grossAmount = parseInt(notif.gross_amount) || 0;
+
+  // Extract our internal order ID (strip "POS18-" prefix and timestamp suffix)
+  // Format: POS18-{orderId}-{timestamp}
+  const parts = midtransOrderId.replace(/^POS18-/, '').split('-');
+  // Our orderId is everything except the last part (timestamp)
+  const internalId = parts.slice(0, -1).join('-') || midtransOrderId;
+
+  // Check if order already exists in Supabase (avoid duplicate from polling)
+  const { data: existing } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('id', internalId)
+    .single();
+
+  if (existing) {
+    console.log(`[Webhook] Order ${internalId} sudah ada, skip.`);
+    return res.json({ ok: true, message: 'Order sudah ada' });
+  }
+
+  // Insert order
+  const nowStr = new Date().toLocaleString('id-ID');
+  const { error: orderErr } = await supabase.from('orders').insert([{
+    id: internalId,
+    queue: 'OL',
+    staff: 'Online',
+    table: 'Unknown',
+    pager: '-',
+    type: 'Online',
+    payment: 'QRIS (Paid)',
+    status: 'Pending',
+    total: grossAmount,
+    time: nowStr,
+    items: [],
+    customer_name: notif.customer_details?.first_name || 'Tamu',
+    created_at: new Date().toISOString()
+  }]);
+
+  if (orderErr) {
+    console.error('[Webhook] Order insert error:', orderErr);
+    return res.status(500).json({ error: 'Order insert failed' });
+  }
+
+  // Insert KDS tickets
+  const placeholder = [{ id: `${internalId}-item-0`, name: `Pesanan Rp${grossAmount.toLocaleString('id-ID')} (via QR)`, checked: false }];
+  const custName = notif.customer_details?.first_name || 'Tamu';
+
+  await supabase.from('kds_orders').insert([
+    { id: `${internalId}-B`, type: 'Online (QR)', table: null, time_in_seconds: 0, status: 'incoming', station: 'barista', items: placeholder, customer_name: custName },
+    { id: `${internalId}-K`, type: 'Online (QR)', table: null, time_in_seconds: 0, status: 'incoming', station: 'kitchen', items: placeholder, customer_name: custName },
+    { id: `${internalId}-KSR`, type: 'Online (QR)', table: null, time_in_seconds: 0, status: 'incoming', station: 'kasir', items: placeholder, customer_name: custName },
+  ]);
+
+  console.log(`[Webhook] ✅ Order ${internalId} (Rp${grossAmount.toLocaleString('id-ID')}) berhasil dibuat dari notifikasi Midtrans.`);
+  res.json({ ok: true, message: 'Order created from webhook' });
 });
 
 // All other GET requests not handled before will return the React app
