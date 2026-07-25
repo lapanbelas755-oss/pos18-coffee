@@ -132,10 +132,8 @@ app.get('/api/qris/status/:order_id', async (req, res) => {
 });
 
 // ─── Midtrans Payment Notification Webhook ───────────────────────────────────
-// Midtrans will POST here when a payment is settled.
-// Set this URL in Midtrans Dashboard → Settings → Configuration → Payment Notification URL
-// Example: https://your-domain.com/api/midtrans/notification
-app.post('/api/midtrans/notification', async (req, res) => {
+// URL sudah terdaftar di Midtrans Dashboard: https://app.lapanbelas.id/api/midtrans-notification
+app.post('/api/midtrans-notification', async (req, res) => {
   const notif = req.body;
   console.log('[Midtrans Notification]', notif?.order_id, notif?.transaction_status);
 
