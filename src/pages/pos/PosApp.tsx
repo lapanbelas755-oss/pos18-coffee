@@ -288,8 +288,35 @@ export default function PosApp() {
     handleStorageChange({ key: "pending_online_orders" });
     window.addEventListener("storage", handleStorageChange);
 
+    // BroadcastChannel for cross-tab notification from QR customer page
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("pos_online_orders");
+      bc.onmessage = (event) => {
+        if (event.data?.type === "new_order") {
+          const order = event.data.order;
+          // Add to POS orders if not already present (Realtime may also pick it up)
+          setPosOrders(prev => {
+            if (prev.find(o => o.id === order.id)) return prev;
+            return [{ ...order, customerName: order.customer_name || order.customerName } as Order, ...prev];
+          });
+          const msg = `Pesanan Online baru dari Meja ${order.table} (Rp${Number(order.total).toLocaleString('id-ID')})`;
+          triggerToast(msg, "success");
+          // Play sound notification
+          try {
+            const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+            audio.volume = 0.5;
+            audio.play().catch(() => {});
+          } catch(e) {}
+        }
+      };
+    } catch (e) {
+      console.warn("BroadcastChannel not supported:", e);
+    }
+
     return () => {
       window.removeEventListener("storage", handleStorageChange);
+      if (bc) bc.close();
       reconnectTimers.forEach(clearTimeout);
       supabase.removeChannel(tablesSub);
       supabase.removeChannel(ordersSub);

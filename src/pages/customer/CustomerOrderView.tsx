@@ -345,8 +345,14 @@ export default function CustomerOrderView() {
   }, [paymentStep, qrisOrderId]);
 
   const handlePaymentSuccess = async () => {
+    const ticketId = `ONL-${Math.floor(1000 + Math.random() * 9000)}`;
+    const nowStr = new Date().toLocaleString("id-ID", {
+      day: "numeric", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+
     const newOrder: any = {
-      id: `ONL-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: ticketId,
       queue: "OL",
       staff: "Online",
       table: tableId || "Unknown",
@@ -355,26 +361,77 @@ export default function CustomerOrderView() {
       payment: "QRIS (Paid)",
       status: "Pending",
       total: orderTotal,
-      time: new Date().toLocaleString("id-ID", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      time: nowStr,
       items: cart,
       customer_name: customerName,
       member_id: loyaltyMember?.id || null,
       created_at: new Date().toISOString()
     };
 
-    // Insert to Real DB
-    await supabase.from('orders').insert([newOrder]);
+    // 1. Insert order to DB
+    const { error: orderErr } = await supabase.from('orders').insert([newOrder]);
+    if (orderErr) console.error("Order insert error:", orderErr);
 
-    // Calculate & award point if member is identified
+    // 2. Insert KDS tickets (barista + kitchen + kasir)
+    const kdsPayloads: any[] = [];
+
+    const baristaItems = cart.map((item, idx) => ({
+      id: `qr-${ticketId}-B-${idx}`,
+      name: `${item.quantity}x ${item.product.name}`,
+      notes: item.selectedMood ? `${item.selectedMood}${item.notes ? ` | ${item.notes}` : ''}` : (item.notes || ''),
+      checked: false
+    }));
+    kdsPayloads.push({
+      id: `${ticketId}-B`,
+      type: "Online (QR)",
+      table: tableId || null,
+      time_in_seconds: 0,
+      status: "incoming",
+      station: "barista",
+      items: baristaItems,
+      customer_name: customerName || "Tamu"
+    });
+
+    const kitchenItems = cart.map((item, idx) => ({
+      id: `qr-${ticketId}-K-${idx}`,
+      name: `${item.quantity}x ${item.product.name}`,
+      notes: item.notes || '',
+      checked: false
+    }));
+    kdsPayloads.push({
+      id: `${ticketId}-K`,
+      type: "Online (QR)",
+      table: tableId || null,
+      time_in_seconds: 0,
+      status: "incoming",
+      station: "kitchen",
+      items: kitchenItems,
+      customer_name: customerName || "Tamu"
+    });
+
+    const kasirItems = cart.map((item, idx) => ({
+      id: `qr-${ticketId}-KSR-${idx}`,
+      name: `${item.quantity}x ${item.product.name}`,
+      checked: false
+    }));
+    kdsPayloads.push({
+      id: `${ticketId}-KSR`,
+      type: "Online (QR)",
+      table: tableId || null,
+      time_in_seconds: 0,
+      status: "incoming",
+      station: "kasir",
+      items: kasirItems,
+      customer_name: customerName || "Tamu"
+    });
+
+    const { error: kdsErr } = await supabase.from('kds_orders').insert(kdsPayloads);
+    if (kdsErr) console.error("KDS insert error:", kdsErr);
+
+    // 3. Award loyalty points if member logged in
     if (loyaltyMember) {
       try {
-        const awardRes = await loyaltyService.calculateAndAwardPoint(newOrder.id, orderTotal, loyaltyMember.id);
+        const awardRes = await loyaltyService.calculateAndAwardPoint(ticketId, orderTotal, loyaltyMember.id);
         if (awardRes && awardRes.success) {
           setLastEarnedPoints(awardRes.pointsEarned);
           setLastTotalBalance(awardRes.newBalance);
@@ -384,13 +441,19 @@ export default function CustomerOrderView() {
       }
     }
 
-    // Send local storage event for Kasir Audio beep & optimism
+    // 4. Notify POS via BroadcastChannel (cross-tab) AND localStorage (same-tab fallback)
+    try {
+      const bc = new BroadcastChannel("pos_online_orders");
+      bc.postMessage({ type: "new_order", order: newOrder });
+      bc.close();
+    } catch (e) {}
     const pendingOrders = JSON.parse(localStorage.getItem("pending_online_orders") || "[]");
     pendingOrders.push({ ...newOrder, customerName: customerName });
     localStorage.setItem("pending_online_orders", JSON.stringify(pendingOrders));
     window.dispatchEvent(new Event("storage"));
 
     setCart([]);
+    localStorage.removeItem(`cart_${tableId}`);
     setPaymentStep("success");
     
     // Auto-redirect to order status after 4 seconds
