@@ -81,10 +81,30 @@ export default function PosApp() {
         })));
       }
 
-      const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-      if (ordersData && ordersData.length > 0) {
-        setPosOrders(ordersData.map(o => ({ ...o, customerName: o.customer_name || o.customerName } as Order)));
-      }
+      const { data: ordersData, error: ordersErr } = await supabase.from('orders')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(300);
+      
+      let dbOrders: Order[] = ordersData ? ordersData.map(o => ({ ...o, customerName: o.customer_name || o.customerName } as Order)) : [];
+      try {
+        const offlineBackup: Order[] = JSON.parse(localStorage.getItem("pos_offline_orders_backup") || "[]");
+        if (offlineBackup.length > 0) {
+          const dbMap = new Map(dbOrders.map(o => [o.id, o]));
+          for (const off of offlineBackup) {
+            if (!dbMap.has(off.id)) {
+              dbOrders.unshift(off);
+              supabase.from('orders').insert([toDbOrder(off)]).then(({ error }) => {
+                if (!error) {
+                  const current = JSON.parse(localStorage.getItem("pos_offline_orders_backup") || "[]");
+                  localStorage.setItem("pos_offline_orders_backup", JSON.stringify(current.filter((x: any) => x.id !== off.id)));
+                }
+              });
+            }
+          }
+        }
+      } catch(e) {}
+      setPosOrders(dbOrders);
 
       const { data: kdsData } = await supabase.from('kds_orders').select('*').order('created_at', { ascending: false });
       if (kdsData && kdsData.length > 0) {
@@ -235,6 +255,32 @@ export default function PosApp() {
           const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
           audio.volume = 0.5;
           audio.play().catch(e => console.error("Audio play failed:", e));
+
+          // Auto-print receipt at Kasir
+          if (isConnected("Kasir")) {
+            pending.forEach((newOrder: any) => {
+              const subtotal = newOrder.items.reduce((sum: number, item: any) => sum + (item.product.price * item.quantity), 0);
+              const dataToPrint = {
+                orderId: newOrder.id,
+                table: newOrder.table,
+                queue: newOrder.queue,
+                type: newOrder.type,
+                staff: newOrder.staff,
+                time: newOrder.time,
+                items: newOrder.items,
+                subtotal: subtotal,
+                discount: 0,
+                tax: 0,
+                total: newOrder.total,
+                paymentMethod: newOrder.payment,
+                customerName: newOrder.customerName || newOrder.customer_name
+              };
+              
+              printReceipt(dataToPrint, "Kasir").catch((err) => {
+                console.error("Auto-print online order failed:", err);
+              });
+            });
+          }
         }
       }
     };
@@ -1020,11 +1066,40 @@ export default function PosApp() {
           created_at: new Date().toISOString()
         };
 
-        supabase.from('orders').insert([toDbOrder(openOrder)]).then();
-        supabase.from('orders').insert([toDbOrder(newOrder)]).then();
+        supabase.from('orders').insert([toDbOrder(openOrder)]).then(({ error }) => {
+          if (error) console.error("Gagal menyimpan openOrder ke DB:", error);
+        });
+        supabase.from('orders').insert([toDbOrder(newOrder)]).then(({ error }) => {
+          if (error) console.error("Gagal menyimpan newOrder ke DB:", error);
+        });
         return [newOrder, openOrder, ...prev];
       } else {
-        supabase.from('orders').insert([toDbOrder(newOrder)]).then();
+        // Save to offline LocalStorage backup immediately
+        try {
+          const offlineCurrent = JSON.parse(localStorage.getItem("pos_offline_orders_backup") || "[]");
+          localStorage.setItem("pos_offline_orders_backup", JSON.stringify([newOrder, ...offlineCurrent.filter((x: any) => x.id !== newOrder.id)]));
+        } catch(e) {}
+
+        supabase.from('orders').insert([toDbOrder(newOrder)]).then(({ error }) => {
+          if (error) {
+            console.error("Gagal menyimpan pesanan ke DB:", error);
+            setTimeout(() => {
+              supabase.from('orders').insert([toDbOrder(newOrder)]).then(({ error: retryErr }) => {
+                if (!retryErr) {
+                  try {
+                    const current = JSON.parse(localStorage.getItem("pos_offline_orders_backup") || "[]");
+                    localStorage.setItem("pos_offline_orders_backup", JSON.stringify(current.filter((x: any) => x.id !== newOrder.id)));
+                  } catch(e) {}
+                }
+              });
+            }, 2000);
+          } else {
+            try {
+              const current = JSON.parse(localStorage.getItem("pos_offline_orders_backup") || "[]");
+              localStorage.setItem("pos_offline_orders_backup", JSON.stringify(current.filter((x: any) => x.id !== newOrder.id)));
+            } catch(e) {}
+          }
+        });
         return [newOrder, ...prev];
       }
     });
@@ -1032,8 +1107,8 @@ export default function PosApp() {
     // ── Loyalty Point Awarding ──
     if (loyaltyMemberId) {
       loyaltyService.calculateAndAwardPoint(newOrder.id, total, loyaltyMemberId).then(awarded => {
-        if (awarded) {
-          triggerToast(`Loyalty Point berhasil ditambahkan!`, "success");
+        if (awarded && awarded.success && awarded.pointsEarned > 0) {
+          triggerToast(`Loyalty Point (+${awarded.pointsEarned} Poin) berhasil ditambahkan!`, "success");
         }
       });
     }

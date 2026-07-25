@@ -67,18 +67,18 @@ export const loyaltyService = {
   },
 
   /**
+  /**
    * Kalkulasi dan berikan poin setelah order berhasil
    * Harus idempotent berdasarkan orderId (supaya tidak dobel)
    */
-  async calculateAndAwardPoint(orderId: string, totalAmount: number, memberId: string): Promise<boolean> {
+  async calculateAndAwardPoint(orderId: string, totalAmount: number, memberId: string): Promise<{ success: boolean; pointsEarned: number; newBalance: number }> {
     try {
       // 1. Get Settings
       const settings = await this.getSettings();
-      if (!settings) return false;
+      if (!settings) return { success: false, pointsEarned: 0, newBalance: 0 };
 
       // 2. Calculate Point
       const pointsEarned = Math.floor(totalAmount / settings.point_per_amount);
-      if (pointsEarned <= 0) return true; // No points to award, but successful flow
 
       // 3. Get Current Member Data
       const { data: memberData, error: memberError } = await supabase
@@ -87,14 +87,34 @@ export const loyaltyService = {
         .eq('id', memberId)
         .single();
         
-      if (memberError || !memberData) return false;
+      if (memberError || !memberData) return { success: false, pointsEarned: 0, newBalance: 0 };
       const member = memberData as LoyaltyMember;
 
-      const newBalance = member.total_point + pointsEarned;
-      const newTotalSpending = Number(member.total_spending) + totalAmount;
-      const newTotalTransaction = member.total_transaction + 1;
+      // 4. Idempotency Check: check if points for this order_id were already awarded
+      const { data: existingHistory } = await supabase
+        .from('member_point_history')
+        .select('*')
+        .eq('order_id', orderId)
+        .maybeSingle();
 
-      // 4. Update Level Logic
+      if (existingHistory) {
+        // Point already awarded
+        return {
+          success: true,
+          pointsEarned: existingHistory.point,
+          newBalance: member.total_point
+        };
+      }
+
+      if (pointsEarned <= 0) {
+        return { success: true, pointsEarned: 0, newBalance: member.total_point };
+      }
+
+      const newBalance = member.total_point + pointsEarned;
+      const newTotalSpending = Number(member.total_spending || 0) + totalAmount;
+      const newTotalTransaction = (member.total_transaction || 0) + 1;
+
+      // 5. Update Level Logic
       let newLevel = member.level;
       if (newTotalSpending > settings.level_gold_max * settings.point_per_amount) {
         newLevel = 'Platinum';
@@ -104,16 +124,14 @@ export const loyaltyService = {
         newLevel = 'Silver';
       }
 
-      // 5. Save History & Update Member (using individual queries to avoid race condition)
-      // Note: Idealnya menggunakan RPC / database transaction, namun kita simulasi lewat client dengan safe insert.
-      
+      // 6. Save History Record
       const historyRecord = {
         member_id: memberId,
         order_id: orderId,
         type: 'Earn',
         point: pointsEarned,
         balance_after: newBalance,
-        description: `Earned from transaction ${orderId}`
+        description: `Earned from QR order ${orderId}`
       };
 
       const { error: historyError } = await supabase
@@ -121,12 +139,11 @@ export const loyaltyService = {
         .insert([historyRecord]);
 
       if (historyError) {
-        // If history fails, likely a unique constraint violation (duplicate orderId)
         console.warn('Point already awarded for this order or history insert failed', historyError);
-        return false;
+        return { success: false, pointsEarned: 0, newBalance: member.total_point };
       }
 
-      // If history insert success, update member
+      // Update Member Balance
       await supabase
         .from('members')
         .update({
@@ -138,11 +155,15 @@ export const loyaltyService = {
         })
         .eq('id', memberId);
 
-      return true;
+      return {
+        success: true,
+        pointsEarned,
+        newBalance
+      };
 
     } catch (err) {
       console.error('Error calculating and awarding points:', err);
-      return false;
+      return { success: false, pointsEarned: 0, newBalance: 0 };
     }
   }
 };

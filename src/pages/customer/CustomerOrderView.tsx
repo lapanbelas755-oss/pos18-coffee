@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { useParams } from "react-router-dom";
-import { Product, CartItem, Order } from "../../types";
+import { Product, CartItem, Order, LoyaltyMember, LoyaltySettings } from "../../types";
 import { supabase } from "../../lib/supabase";
 import { calculateItemUnitPrice } from "../../utils/pricing";
+import { loyaltyService } from "../../modules/loyalty/loyaltyService";
 
 export default function CustomerOrderView() {
   const { tableId } = useParams();
@@ -35,10 +36,76 @@ export default function CustomerOrderView() {
   const [orderTotal, setOrderTotal] = useState(0);
   const [qrisUrl, setQrisUrl] = useState<string | null>(null);
   const [qrisError, setQrisError] = useState<string | null>(null);
+  const [qrisOrderId, setQrisOrderId] = useState<string | null>(null);
   const [isLoadingQris, setIsLoadingQris] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<"success" | "warning" | "error">("warning");
   const [qrisTimer, setQrisTimer] = useState<number>(900);
+
+  // Loyalty Member States
+  const [loyaltyMember, setLoyaltyMember] = useState<LoyaltyMember | null>(null);
+  const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings | null>(null);
+  const [memberPhoneInput, setMemberPhoneInput] = useState("");
+  const [isSearchingMember, setIsSearchingMember] = useState(false);
+  const [memberMessage, setMemberMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
+  const [showCreateMember, setShowCreateMember] = useState(false);
+  const [newMemberName, setNewMemberName] = useState("");
+  const [lastEarnedPoints, setLastEarnedPoints] = useState<number>(0);
+  const [lastTotalBalance, setLastTotalBalance] = useState<number>(0);
+
+  useEffect(() => {
+    loyaltyService.getSettings().then((settings) => {
+      if (settings) setLoyaltySettings(settings);
+    });
+  }, []);
+
+  const handleSearchMember = async () => {
+    if (!memberPhoneInput.trim()) {
+      setMemberMessage({ text: "Masukkan nomor WhatsApp Anda.", type: "error" });
+      return;
+    }
+    setIsSearchingMember(true);
+    setMemberMessage(null);
+    try {
+      const member = await loyaltyService.searchMember(memberPhoneInput.trim());
+      if (member) {
+        setLoyaltyMember(member);
+        if (!customerName) setCustomerName(member.full_name);
+        setMemberMessage({ text: `Selamat datang kembali, ${member.full_name}!`, type: "success" });
+        setShowCreateMember(false);
+      } else {
+        setLoyaltyMember(null);
+        setShowCreateMember(true);
+        setNewMemberName(customerName || "");
+        setMemberMessage({ text: "Nomor belum terdaftar. Silakan lengkapi nama untuk mendaftar.", type: "info" });
+      }
+    } catch (e) {
+      setMemberMessage({ text: "Terjadi kesalahan saat mencari member.", type: "error" });
+    } finally {
+      setIsSearchingMember(false);
+    }
+  };
+
+  const handleCreateMember = async () => {
+    if (!newMemberName.trim() || !memberPhoneInput.trim()) {
+      setMemberMessage({ text: "Nama dan Nomor WhatsApp wajib diisi.", type: "error" });
+      return;
+    }
+    setIsSearchingMember(true);
+    try {
+      const newMember = await loyaltyService.createMember(newMemberName.trim(), memberPhoneInput.trim());
+      if (newMember) {
+        setLoyaltyMember(newMember);
+        setCustomerName(newMember.full_name);
+        setShowCreateMember(false);
+        setMemberMessage({ text: `Member berhasil dibuat! Selamat datang, ${newMember.full_name}.`, type: "success" });
+      }
+    } catch (e: any) {
+      setMemberMessage({ text: `Gagal mendaftar: ${e.message}`, type: "error" });
+    } finally {
+      setIsSearchingMember(false);
+    }
+  };
 
   useEffect(() => {
     let timerInterval: any;
@@ -223,6 +290,7 @@ export default function CustomerOrderView() {
     setIsLoadingQris(true);
     setQrisError(null);
     setQrisUrl(null);
+    setQrisOrderId(null);
     setQrisTimer(900); // Reset timer to 15 mins (900 secs)
     setPaymentStep("qris");
     setIsCheckoutModalOpen(false);
@@ -241,6 +309,7 @@ export default function CustomerOrderView() {
       const data = await response.json();
       if (response.ok && data.qr_url) {
         setQrisUrl(data.qr_url);
+        setQrisOrderId(data.order_id);
       } else {
         setQrisError(data.error || "Gagal membuat QRIS.");
       }
@@ -252,8 +321,31 @@ export default function CustomerOrderView() {
     }
   };
 
+  // Auto-poll QRIS status
+  useEffect(() => {
+    let interval: any;
+    if (paymentStep === "qris" && qrisOrderId) {
+      interval = setInterval(async () => {
+        try {
+          const apiUrl = getApiUrl();
+          const res = await fetch(`${apiUrl}/api/qris/status/${qrisOrderId}`);
+          const data = await res.json();
+          if (data.success && (data.status === 'settlement' || data.status === 'capture')) {
+            clearInterval(interval);
+            handlePaymentSuccess();
+          }
+        } catch (e) {
+          console.error("Gagal mengecek status QRIS:", e);
+        }
+      }, 5000); // Cek setiap 5 detik
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [paymentStep, qrisOrderId]);
+
   const handlePaymentSuccess = async () => {
-    const newOrder = {
+    const newOrder: any = {
       id: `ONL-${Math.floor(1000 + Math.random() * 9000)}`,
       queue: "OL",
       staff: "Online",
@@ -272,11 +364,25 @@ export default function CustomerOrderView() {
       }),
       items: cart,
       customer_name: customerName,
+      member_id: loyaltyMember?.id || null,
       created_at: new Date().toISOString()
     };
 
     // Insert to Real DB
     await supabase.from('orders').insert([newOrder]);
+
+    // Calculate & award point if member is identified
+    if (loyaltyMember) {
+      try {
+        const awardRes = await loyaltyService.calculateAndAwardPoint(newOrder.id, orderTotal, loyaltyMember.id);
+        if (awardRes && awardRes.success) {
+          setLastEarnedPoints(awardRes.pointsEarned);
+          setLastTotalBalance(awardRes.newBalance);
+        }
+      } catch (e) {
+        console.error("Error awarding points:", e);
+      }
+    }
 
     // Send local storage event for Kasir Audio beep & optimism
     const pendingOrders = JSON.parse(localStorage.getItem("pending_online_orders") || "[]");
@@ -285,9 +391,57 @@ export default function CustomerOrderView() {
     window.dispatchEvent(new Event("storage"));
 
     setCart([]);
-    setPaymentStep("cart");
-    setIsHistoryModalOpen(true);
+    setPaymentStep("success");
+    
+    // Auto-redirect to order status after 4 seconds
+    setTimeout(() => {
+      setPaymentStep("cart");
+      setIsHistoryModalOpen(true);
+    }, 4000);
   };
+
+  if (paymentStep === "success") {
+    return (
+      <div className="h-[100dvh] bg-[#f8f9fa] flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 opacity-10"></div>
+        
+        <div className="bg-white p-8 rounded-[32px] shadow-[0_20px_50px_-12px_rgba(16,185,129,0.3)] border border-emerald-100 mb-6 flex flex-col items-center w-full max-w-[320px] relative z-10 animate-in zoom-in duration-500">
+          <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mb-6 shadow-inner">
+            <span className="material-symbols-outlined text-6xl text-emerald-600">check_circle</span>
+          </div>
+          <h2 className="text-2xl font-extrabold text-slate-800 mb-2 tracking-tight">Pembayaran Berhasil!</h2>
+          <p className="text-sm font-medium text-slate-500 mb-4 px-2">Terima kasih, Kak {customerName || 'Pelanggan'}. Pesanan Anda sedang diproses.</p>
+
+          {loyaltyMember && (
+            <div className="w-full bg-orange-50 border border-orange-200 rounded-2xl p-4 mb-4 text-center shadow-sm">
+              <span className="text-[10px] font-bold text-orange-800 block uppercase tracking-wider mb-1">Perolehan Poin</span>
+              <p className="text-3xl font-black text-orange-600 mb-1">+{lastEarnedPoints} Point</p>
+              <p className="text-xs font-semibold text-slate-600">Total Point Anda sekarang: <span className="font-extrabold text-orange-700">{lastTotalBalance} Point</span></p>
+            </div>
+          )}
+
+          <div className="w-full bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-4">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Total Dibayar</p>
+            <p className="text-xl font-black text-emerald-600">Rp{orderTotal.toLocaleString("id-ID")}</p>
+          </div>
+          
+          <button
+            onClick={() => {
+              setPaymentStep("cart");
+              setIsHistoryModalOpen(true);
+            }}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-2xl transition-all shadow-lg shadow-emerald-600/20 text-sm cursor-pointer active:scale-95"
+          >
+            Lihat Status Pesanan
+          </button>
+        </div>
+        
+        <p className="text-xs font-bold text-slate-400 animate-pulse relative z-10">
+          Mengarahkan ke Status Pesanan...
+        </p>
+      </div>
+    );
+  }
 
   if (paymentStep === "qris") {
     return (
@@ -776,10 +930,144 @@ export default function CustomerOrderView() {
                 ))}
               </div>
 
-              {/* Payment Summary */}
-              <div className="bg-white p-5 rounded-3xl border border-slate-100 mb-8 shadow-sm">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Ringkasan Pembayaran</h4>
-                <div className="flex justify-between items-end">
+              {/* Member Identification Section */}
+              <div className="bg-white p-5 rounded-3xl border border-slate-100 mb-6 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    Pilihan Member / Loyalty
+                  </label>
+                  {loyaltyMember && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoyaltyMember(null);
+                        setMemberPhoneInput("");
+                        setMemberMessage(null);
+                        setShowCreateMember(false);
+                      }}
+                      className="text-[11px] text-red-500 font-bold hover:underline"
+                    >
+                      Ganti Member
+                    </button>
+                  )}
+                </div>
+
+                {!loyaltyMember ? (
+                  <div>
+                    {!showCreateMember ? (
+                      <div className="space-y-3">
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <span className="material-symbols-outlined absolute left-3.5 top-3.5 text-slate-400 text-[18px]">smartphone</span>
+                            <input
+                              type="tel"
+                              value={memberPhoneInput}
+                              onChange={(e) => setMemberPhoneInput(e.target.value)}
+                              placeholder="No. WhatsApp Member..."
+                              className="w-full bg-slate-50 border border-slate-200 pl-10 pr-3 py-3 rounded-2xl text-xs font-semibold focus:outline-none focus:border-[#1a4b9c] text-slate-800"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleSearchMember}
+                            disabled={isSearchingMember}
+                            className="bg-[#1a4b9c] text-white px-4 py-3 rounded-2xl text-xs font-bold hover:bg-[#153a7a] transition-all disabled:opacity-50 shrink-0"
+                          >
+                            {isSearchingMember ? "Cari..." : "Cek Member"}
+                          </button>
+                        </div>
+
+                        {memberMessage && (
+                          <div className={`p-3 rounded-xl text-xs font-semibold ${
+                            memberMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                            memberMessage.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
+                            'bg-blue-50 text-blue-700 border border-blue-200'
+                          }`}>
+                            {memberMessage.text}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Registration Form */
+                      <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-blue-900">Daftar Member Baru</span>
+                          <button type="button" onClick={() => setShowCreateMember(false)} className="text-xs text-slate-400 font-bold hover:text-slate-600">Batal</button>
+                        </div>
+                        <input
+                          type="text"
+                          value={newMemberName}
+                          onChange={(e) => setNewMemberName(e.target.value)}
+                          placeholder="Nama Lengkap..."
+                          className="w-full bg-white border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#1a4b9c]"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleCreateMember}
+                          disabled={isSearchingMember}
+                          className="w-full bg-emerald-600 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all shadow-sm"
+                        >
+                          {isSearchingMember ? "Mendaftarkan..." : "Daftar & Sambungkan Member"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Connected Member Banner */
+                  <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white p-4 rounded-2xl shadow-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-amber-200 text-2xl">stars</span>
+                        <div>
+                          <p className="text-[10px] font-medium text-amber-100 uppercase tracking-wider">Selamat Datang 👋</p>
+                          <h4 className="font-extrabold text-sm text-white leading-tight">{loyaltyMember.full_name}</h4>
+                        </div>
+                      </div>
+                      <span className="bg-white/20 backdrop-blur-sm border border-white/30 text-white px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase">
+                        {loyaltyMember.level}
+                      </span>
+                    </div>
+                    <div className="pt-2 border-t border-white/20 flex justify-between items-center text-xs">
+                      <span className="text-amber-100 font-medium">Point Saat Ini:</span>
+                      <span className="font-black text-sm text-white">{loyaltyMember.total_point} Point</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Payment & Loyalty Summary */}
+              <div className="bg-white p-5 rounded-3xl border border-slate-100 mb-6 shadow-sm space-y-3">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Ringkasan Pembayaran</h4>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600 font-medium">Subtotal</span>
+                  <span className="font-bold text-slate-800">Rp{subtotal.toLocaleString("id-ID")}</span>
+                </div>
+
+                {/* Loyalty Calculation Preview */}
+                {loyaltySettings && (
+                  <div className="pt-3 border-t border-slate-100 space-y-2">
+                    <div className="flex justify-between items-center text-xs text-orange-700 bg-orange-50 p-2.5 rounded-xl border border-orange-100 font-semibold">
+                      <span className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-orange-500 text-[16px]">military_tech</span>
+                        <span>Estimasi Poin Diperoleh</span>
+                      </span>
+                      <span className="font-extrabold text-sm text-orange-600">
+                        +{Math.floor(subtotal / loyaltySettings.point_per_amount)} Point
+                      </span>
+                    </div>
+
+                    {loyaltyMember && (
+                      <div className="flex justify-between items-center text-xs text-slate-500 px-1">
+                        <span>Total Poin Setelah Pembayaran:</span>
+                        <span className="font-bold text-slate-700">
+                          {loyaltyMember.total_point + Math.floor(subtotal / loyaltySettings.point_per_amount)} Point
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="pt-3 border-t border-slate-100 flex justify-between items-end">
                   <span className="text-sm font-bold text-slate-800">Total Bayar</span>
                   <span className="font-black text-2xl text-[#1a4b9c] tracking-tight">
                     Rp{subtotal.toLocaleString("id-ID")}

@@ -92,7 +92,14 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
       }));
     }
     
-    supabase.from('orders').update({ status: "Selesai", payment: method, ref_no: refNo }).eq('id', orderToPay.id).then();
+    supabase.from('orders').update({ status: "Selesai", payment: method, ref_no: refNo }).eq('id', orderToPay.id).then(({ error }) => {
+      if (error) {
+        console.error("Gagal update status order:", error);
+        setTimeout(() => {
+          supabase.from('orders').update({ status: "Selesai", payment: method, ref_no: refNo }).eq('id', orderToPay.id).then();
+        }, 2000);
+      }
+    });
 
     onNotify(`Pembayaran pesanan ${orderToPay.id} berhasil diproses dengan ${method}${refNo ? ` (Ref: ${refNo})` : ''}.`, "success");
     setOrderToPay(null);
@@ -157,8 +164,17 @@ export default function POSOrdersHistoryView({ posOrders, setPosOrders, tables, 
         }));
       }
 
-      supabase.from('orders').update({ status: "Selesai", payment: method }).eq('id', orderToPay.id).then();
-      supabase.from('orders').insert([toDbOrder(paidOrderRecord)]).then();
+      supabase.from('orders').update({ status: "Selesai", payment: method }).eq('id', orderToPay.id).then(({ error }) => {
+        if (error) console.error("Error updating order status:", error);
+      });
+      supabase.from('orders').insert([toDbOrder(paidOrderRecord)]).then(({ error }) => {
+        if (error) {
+          console.error("Error inserting paid order record:", error);
+          setTimeout(() => {
+            supabase.from('orders').insert([toDbOrder(paidOrderRecord)]).then();
+          }, 2000);
+        }
+      });
       onNotify(`Pesanan ${orderToPay.id} telah LUNAS seluruhnya.`, "success");
     } else {
       setPosOrders(prev => [

@@ -10,7 +10,7 @@ interface POSDashboardProps {
   cart: CartItem[];
   setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
   onPrintBills: (customerName?: string, promo?: Promo | null) => void;
-  onSaveOrder: (tableId: string, tableName: string) => void;
+  onSaveOrder: (customerName?: string) => void;
   viewMode: "table" | "menu";
   tables: TableData[];
   setTables: React.Dispatch<React.SetStateAction<TableData[]>>;
@@ -112,7 +112,7 @@ export default function POSDashboard({
         customerName={customerName}
         setCustomerName={setCustomerName}
         onCheckout={onPrintBills}
-        onSaveOrder={() => activeTableId && onSaveOrder(activeTableId, tables.find(t => t.id === activeTableId)?.name || "Unknown")}
+        onSaveOrder={(custName) => onSaveOrder(custName)}
         onCancel={handleCancel}
         activeTableId={activeTableId}
         activeTableName={activeTableId ? tables.find(t => t.id === activeTableId)?.name : undefined}

@@ -199,6 +199,8 @@ export interface Order {
   time: string;
   items: CartItem[];
   customerName?: string;
+  member_id?: string;
+  points_earned?: number;
   created_at?: string;
 }
 
