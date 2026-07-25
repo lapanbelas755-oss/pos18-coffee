@@ -1105,7 +1105,7 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
                         alert(`Voucher ${found.code} sudah kadaluarsa (berlaku tgl ${found.validUntil}).`);
                         return;
                       }
-                      if (found.usage > 0 || found.status === "Terpakai") {
+                      if (found.usage > 0) {
                         alert(`Voucher ${found.code} sudah pernah digunakan hari ini (Maksimal 1x per hari).`);
                         return;
                       }
@@ -1118,6 +1118,40 @@ export default function PaymentModal({ total, cart = [], promos = [], customerNa
                   Terapkan
                 </button>
               </div>
+
+              {/* Voucher Karyawan */}
+              {promos && promos.filter(p => p.status === "Aktif" && p.type === "Karyawan").length > 0 && (
+                <div className="mt-4 border-t border-slate-100 pt-4">
+                  <p className="text-xs font-bold text-amber-700 mb-3 uppercase tracking-wider flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">badge</span>
+                    Voucher Karyawan Harian
+                  </p>
+                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                    {promos.filter(p => p.status === "Aktif" && p.type === "Karyawan").map(promo => {
+                      const todayStr = new Date().toISOString().split('T')[0];
+                      const isExpired = promo.validUntil !== todayStr;
+                      const isUsed = promo.usage > 0 || promo.status === "Terpakai";
+                      if (isExpired || isUsed) return null;
+                      return (
+                        <div 
+                          key={promo.id} 
+                          onClick={() => { 
+                            setAppliedPromo(promo); 
+                            setShowPromoModal(false); 
+                          }} 
+                          className="border border-amber-200 p-3 rounded-xl hover:border-amber-500 hover:bg-amber-50 cursor-pointer transition-colors flex justify-between items-center group bg-amber-50/20"
+                        >
+                          <div>
+                            <p className="font-bold text-amber-950 text-sm">{promo.title}</p>
+                            <p className="text-xs text-amber-700 font-mono mt-0.5">{promo.code}</p>
+                          </div>
+                          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-1 rounded">Gratis 1 Minum</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {promos && promos.filter(p => p.status === "Aktif" && p.type !== "Karyawan").length > 0 && (
                 <div className="mt-4 border-t border-slate-100 pt-4">

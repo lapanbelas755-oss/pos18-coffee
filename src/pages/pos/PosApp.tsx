@@ -49,10 +49,47 @@ const getItemReceiptName = (item: { product: { name: string }; selectedSize?: st
 
 export default function PosApp() {
   const { promos, setPromos, connectedPrinters, setPrinterConnected } = usePosStore();
-  const { currentUser } = useAuthStore();
+  const { currentUser, employees } = useAuthStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [kdsOrders, setKdsOrders] = useState<KdsOrder[]>([]);
+
+  // Auto-generate employee vouchers for today
+  useEffect(() => {
+    if (!employees || employees.length === 0) return;
+    const dateStr = new Date().toISOString().split('T')[0];
+    const dateCode = dateStr.replace(/-/g, '').slice(2); // YYMMDD
+    
+    setPromos(prev => {
+      const activeEmps = employees.filter(e => e.status === 'Aktif');
+      const newPromos = [...prev];
+      let updated = false;
+
+      activeEmps.forEach(emp => {
+        const firstName = emp.name.split(' ')[0].toUpperCase();
+        const code = `EMP-${firstName}-${dateCode}`;
+        
+        // Cek apakah karyawan ini sudah dibuatkan voucher aktif untuk tanggal hari ini
+        const existingToday = newPromos.find(p => p.type === 'Karyawan' && p.employeeId === emp.id && p.validUntil === dateStr);
+        if (!existingToday) {
+          newPromos.unshift({
+            id: `VCH-${emp.id}-${dateStr}`,
+            title: `Voucher Minum ${emp.name}`,
+            code,
+            type: "Karyawan",
+            value: 0,
+            validUntil: dateStr,
+            status: "Aktif",
+            usage: 0,
+            employeeId: emp.id,
+            shift: "Karyawan" as any
+          });
+          updated = true;
+        }
+      });
+      return updated ? newPromos : prev;
+    });
+  }, [employees, setPromos]);
 
   // Note: Since Admin and POS are isolated, these are POS's local copy of stock, recipes, transactions.
   // In a real app with a backend, they would fetch from an API.
