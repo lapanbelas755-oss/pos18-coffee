@@ -377,8 +377,20 @@ export default function CustomerOrderView() {
     };
 
     // 1. Insert order to DB
-    const { member_id, ...dbOrderPayload } = newOrder;
-    const { error: orderErr } = await supabase.from('orders').insert([dbOrderPayload]);
+    let { error: orderErr } = await supabase.from('orders').insert([newOrder]);
+    
+    // Fallback: Jika gagal karena kolom member_id belum ada di database, coba insert tanpa member_id
+    if (orderErr && (
+      orderErr.message?.includes('member_id') || 
+      orderErr.details?.includes('member_id') || 
+      orderErr.code === '42703'
+    )) {
+      console.warn("Retrying order insert without member_id because the column does not exist yet.");
+      const { member_id, ...dbOrderPayload } = newOrder;
+      const retryResult = await supabase.from('orders').insert([dbOrderPayload]);
+      orderErr = retryResult.error;
+    }
+    
     if (orderErr) console.error("Order insert error:", orderErr);
 
     // 2. Insert KDS tickets (barista + kitchen + kasir)
