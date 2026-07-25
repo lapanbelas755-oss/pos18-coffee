@@ -31,10 +31,15 @@ const BASE_URL = IS_PRODUCTION
   ? 'https://app.midtrans.com/snap/v1/transactions' 
   : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
 
+// In-memory cache: midtransOrderId → { items, customer_name, table_id }
+// Disimpan sementara di RAM hingga webhook diterima (maks 2 jam)
+const pendingOrdersCache = new Map();
+const CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 jam
+
 app.post('/api/qris', async (req, res) => {
   console.log('--- Request masuk ke /api/qris (SNAP API) ---');
   try {
-    const { order_id, gross_amount, customer_name } = req.body;
+    const { order_id, gross_amount, customer_name, items, table_id } = req.body;
 
     if (!order_id || !gross_amount) {
       return res.status(400).json({ error: 'order_id dan gross_amount harus diisi' });
@@ -83,11 +88,20 @@ app.post('/api/qris', async (req, res) => {
       const payData = await payResponse.json();
       
       if (payResponse.ok && payData.qr_code_url) {
+        const midtransId = payload.transaction_details.order_id;
+        // Cache items for webhook use
+        pendingOrdersCache.set(midtransId, {
+          items: items || [],
+          customer_name: customer_name || 'Tamu',
+          table_id: table_id || null,
+          internal_order_id: order_id,
+          expires_at: Date.now() + CACHE_TTL_MS
+        });
         return res.json({ 
           success: true, 
           qr_url: payData.qr_code_url,
           transaction_id: payData.transaction_id,
-          order_id: payload.transaction_details.order_id
+          order_id: midtransId
         });
       } else {
         return res.status(400).json({ error: payData.status_message || 'Gagal generate QR Code dari Snap', raw: payData });
@@ -146,11 +160,20 @@ app.post('/api/midtrans-notification', async (req, res) => {
   const midtransOrderId = notif.order_id; // e.g. "POS18-ONL-4780-1753419123456"
   const grossAmount = parseInt(notif.gross_amount) || 0;
 
-  // Extract our internal order ID (strip "POS18-" prefix and timestamp suffix)
-  // Format: POS18-{orderId}-{timestamp}
-  const parts = midtransOrderId.replace(/^POS18-/, '').split('-');
-  // Our orderId is everything except the last part (timestamp)
-  const internalId = parts.slice(0, -1).join('-') || midtransOrderId;
+  // Retrieve cached data (items + customer) saved when QRIS was created
+  const cached = pendingOrdersCache.get(midtransOrderId);
+  const cachedItems = cached?.items || [];
+  const custName = cached?.customer_name || notif.customer_details?.first_name || 'Tamu';
+  const tableId = cached?.table_id || null;
+
+  // Extract our internal order ID
+  // If we have cache, use the stored internal_order_id directly
+  let internalId = cached?.internal_order_id;
+  if (!internalId) {
+    // Fallback: strip "POS18-" prefix and timestamp suffix
+    const parts = midtransOrderId.replace(/^POS18-/, '').split('-');
+    internalId = parts.slice(0, -1).join('-') || midtransOrderId;
+  }
 
   // Check if order already exists in Supabase (avoid duplicate from polling)
   const { data: existing } = await supabase
@@ -161,8 +184,17 @@ app.post('/api/midtrans-notification', async (req, res) => {
 
   if (existing) {
     console.log(`[Webhook] Order ${internalId} sudah ada, skip.`);
+    pendingOrdersCache.delete(midtransOrderId);
     return res.json({ ok: true, message: 'Order sudah ada' });
   }
+
+  // Build items for storage
+  const orderItems = cachedItems.length > 0 ? cachedItems.map((item, idx) => ({
+    id: `qr-item-${idx}`,
+    product: { name: item.name, price: item.price || 0 },
+    quantity: item.quantity,
+    notes: item.notes || ''
+  })) : [];
 
   // Insert order
   const nowStr = new Date().toLocaleString('id-ID');
@@ -170,15 +202,15 @@ app.post('/api/midtrans-notification', async (req, res) => {
     id: internalId,
     queue: 'OL',
     staff: 'Online',
-    table: 'Unknown',
+    table: tableId || 'Unknown',
     pager: '-',
     type: 'Online',
     payment: 'QRIS (Paid)',
     status: 'Pending',
     total: grossAmount,
     time: nowStr,
-    items: [],
-    customer_name: notif.customer_details?.first_name || 'Tamu',
+    items: orderItems,
+    customer_name: custName,
     created_at: new Date().toISOString()
   }]);
 
@@ -187,15 +219,25 @@ app.post('/api/midtrans-notification', async (req, res) => {
     return res.status(500).json({ error: 'Order insert failed' });
   }
 
-  // Insert KDS tickets
-  const placeholder = [{ id: `${internalId}-item-0`, name: `Pesanan Rp${grossAmount.toLocaleString('id-ID')} (via QR)`, checked: false }];
-  const custName = notif.customer_details?.first_name || 'Tamu';
+  // Build KDS items from cache (with real item names)
+  const buildKdsItems = (station) => {
+    if (cachedItems.length === 0) {
+      return [{ id: `${internalId}-${station}-0`, name: `Total Rp${grossAmount.toLocaleString('id-ID')} (item tidak tersedia)`, checked: false }];
+    }
+    return cachedItems.map((item, idx) => ({
+      id: `${internalId}-${station}-${idx}`,
+      name: `${item.quantity}x ${item.name}`,
+      notes: item.notes || '',
+      checked: false
+    }));
+  };
 
   await supabase.from('kds_orders').insert([
-    { id: `${internalId}-B`, type: 'Online (QR)', table: null, time_in_seconds: 0, status: 'incoming', station: 'barista', items: placeholder, customer_name: custName },
-    { id: `${internalId}-K`, type: 'Online (QR)', table: null, time_in_seconds: 0, status: 'incoming', station: 'kitchen', items: placeholder, customer_name: custName },
-    { id: `${internalId}-KSR`, type: 'Online (QR)', table: null, time_in_seconds: 0, status: 'incoming', station: 'kasir', items: placeholder, customer_name: custName },
+    { id: `${internalId}-B`, type: 'Online (QR)', table: tableId, time_in_seconds: 0, status: 'incoming', station: 'barista', items: buildKdsItems('B'), customer_name: custName },
+    { id: `${internalId}-K`, type: 'Online (QR)', table: tableId, time_in_seconds: 0, status: 'incoming', station: 'kitchen', items: buildKdsItems('K'), customer_name: custName },
+    { id: `${internalId}-KSR`, type: 'Online (QR)', table: tableId, time_in_seconds: 0, status: 'incoming', station: 'kasir', items: buildKdsItems('KSR'), customer_name: custName },
   ]);
+
 
   console.log(`[Webhook] ✅ Order ${internalId} (Rp${grossAmount.toLocaleString('id-ID')}) berhasil dibuat dari notifikasi Midtrans.`);
   res.json({ ok: true, message: 'Order created from webhook' });

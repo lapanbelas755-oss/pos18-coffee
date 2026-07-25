@@ -297,13 +297,21 @@ export default function CustomerOrderView() {
 
     try {
       const apiUrl = getApiUrl();
+      const cartItems = cart.map(item => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          price: calculateItemUnitPrice(item),
+          notes: item.selectedMood ? `${item.selectedMood}${item.notes ? ` | ${item.notes}` : ''}` : (item.notes || '')
+        }));
       const response = await fetch(`${apiUrl}/api/qris`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           order_id: `ONL-${Math.floor(1000 + Math.random() * 9000)}`,
           gross_amount: Math.round(total),
-          customer_name: customerName
+          customer_name: customerName,
+          table_id: tableId || null,
+          items: cartItems
         })
       });
       const data = await response.json();
