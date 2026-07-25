@@ -15,10 +15,10 @@ app.use(cors());
 app.use(express.json());
 
 // Supabase Client (server-side)
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL || '',
-  process.env.VITE_SUPABASE_ANON_KEY || ''
-);
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://kdrtpzbxgjvkznkokxmi.supabase.co';
+const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkcnRwemJ4Z2p2a3pua29reG1pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3Mzk5NjYsImV4cCI6MjA5OTMxNTk2Nn0.PnhXOkGwVytUG-mimpgmaaPZilb7iDteVnf-VXsO_4U';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Serve static files from the React app
 app.use(express.static(path.join(__dirname, 'dist')));
