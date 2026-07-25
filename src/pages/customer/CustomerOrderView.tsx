@@ -377,7 +377,8 @@ export default function CustomerOrderView() {
     };
 
     // 1. Insert order to DB
-    const { error: orderErr } = await supabase.from('orders').insert([newOrder]);
+    const { member_id, ...dbOrderPayload } = newOrder;
+    const { error: orderErr } = await supabase.from('orders').insert([dbOrderPayload]);
     if (orderErr) console.error("Order insert error:", orderErr);
 
     // 2. Insert KDS tickets (barista + kitchen + kasir)
